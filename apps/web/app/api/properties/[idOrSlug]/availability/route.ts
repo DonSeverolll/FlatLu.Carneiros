@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isIsoDate } from '@/server/dates';
 import { handle, json, parseQuery } from '@/server/http';
 import { findProperty, publicProperty, unavailableNights } from '@/server/property';
+import { publicRateSummary } from '@/server/rateSummary';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,8 +18,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ idOrSlug: s
     const range = parseQuery(request, rangeSchema);
     const property = await findProperty(idOrSlug);
     const availability = await unavailableNights(property, range);
+    const rates = await publicRateSummary(property.id, property.timezone);
     // O motivo do bloqueio (manutenção, uso do proprietário) é informação
     // interna: a vitrine só precisa saber que a noite não está à venda.
-    return json({ property: publicProperty(property), ...availability });
+    return json({ property: publicProperty(property, rates), ...availability });
   });
 }

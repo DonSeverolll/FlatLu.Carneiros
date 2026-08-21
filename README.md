@@ -142,6 +142,55 @@ npm run promote:admin voce@email.com
 
 Ver [CORRECOES.md](CORRECOES.md) — inclui o que **não** foi verificado.
 
+## Calendário de tarifas
+
+O preço não é uma diária única. Cada noite recebe um valor, e a estadia é a soma
+— tudo calculado no servidor (`src/server/rates.ts`), nunca no navegador. A
+vitrine mostra exatamente o que `GET /api/properties/:slug/quote` responde, e é
+o mesmo cálculo que a reserva grava.
+
+**Precedência de cada noite:** período especial de maior prioridade → tarifa do
+dia da semana → diária de fallback da propriedade.
+
+### Tarifa por dia da semana
+
+Configurada em `/admin`. Tabela em vigor:
+
+| Dia | Valor |
+|---|---|
+| Segunda a quinta | R$ 300 |
+| Sexta | R$ 400 |
+| Sábado | R$ 1.000 |
+| Domingo | R$ 300 |
+
+Um dia com tarifa **0** não é vendido: a vitrine mostra "sob consulta" e a API
+recusa a reserva com `RATE_NOT_PUBLISHED`. Preço errado nunca vai ao ar.
+
+`Mín. noites para entrada` é o que impede vender uma noite solta: se a estadia
+começa naquele dia da semana, precisa ter pelo menos N noites.
+
+### Períodos especiais
+
+Natal, Réveillon e feriados prolongados entram como períodos com data, também
+em `/admin`. Duas formas de cobrar:
+
+- **Pacote fechado** — valor único pelo bloco inteiro, e a estadia precisa
+  cobrir todas as noites do período. É o formato de Réveillon: R$ 2.500 não é
+  "por noite", é o pacote. Uma reserva que cubra só parte dele é recusada com
+  `PERIOD_REQUIRES_FULL_STAY`.
+- **Por noite** — substitui a tarifa do dia da semana dentro do período.
+
+`ends_on` é a **última noite**, não o check-out: um Réveillon de 30/12 a 01/01
+tem saída em 02/01.
+
+A **prioridade** resolve sobreposições — maior vence, o que permite Réveillon
+(prioridade 200) dentro de Alta Estação (100). Dois períodos ativos de mesma
+prioridade não podem se sobrepor: a constraint de exclusão do banco recusa, em
+vez de escolher um preço em silêncio.
+
+Toda reserva guarda o extrato do cálculo em `reservations.rate_breakdown`, então
+uma reserva antiga continua explicável depois que a tabela mudar.
+
 ## Teste de fumaça
 
 `npm run test` cobre a lógica pura. O que só quebra com um banco do outro lado

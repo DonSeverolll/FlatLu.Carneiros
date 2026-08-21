@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BookingWidget from './BookingWidget';
 import { config } from '@/server/config';
 import { findProperty, publicProperty, unavailableNights } from '@/server/property';
+import { publicRateSummary } from '@/server/rateSummary';
 import type { PublicPropertyDto } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -21,8 +22,9 @@ async function loadShowcase(): Promise<{
   try {
     const property = await findProperty(config.propertySlug);
     const availability = await unavailableNights(property);
+    const rates = await publicRateSummary(property.id, property.timezone);
     return {
-      property: publicProperty(property),
+      property: publicProperty(property, rates),
       unavailable: availability.unavailable,
       from: availability.from,
       error: null

@@ -76,7 +76,10 @@ const db = new pg.Client({
 await db.connect();
 
 const propertyId = (await db.query(`select id from properties where slug = 'flat-praia-de-carneiros'`)).rows[0].id;
-const originalRate = (await db.query('select nightly_rate, pix_key from properties where id = $1', [propertyId])).rows[0];
+const original = (await db.query(
+  'select nightly_rate, pix_key, min_nights, deposit_percentage, max_guests from properties where id = $1',
+  [propertyId]
+)).rows[0];
 
 // Datas bem no futuro, para não colidir com nada real.
 const base = new Date();
@@ -86,8 +89,29 @@ const iso = (offset) => {
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
 };
-const checkIn = iso(0);
-const checkOut = iso(3);
+/** Primeiro `dow` (0=dom..6=sab) a partir de um deslocamento. */
+const nextWeekday = (offsetFrom, dow) => {
+  for (let step = offsetFrom; step < offsetFrom + 7; step += 1) {
+    const day = iso(step);
+    const [y, m, d] = day.split('-').map(Number);
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === dow) return day;
+  }
+  throw new Error('dia da semana nao encontrado');
+};
+const addDays = (day, amount) => {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + amount)).toISOString().slice(0, 10);
+};
+
+const MONDAY = nextWeekday(0, 1);
+const THURSDAY = addDays(MONDAY, 3);
+const FRIDAY = nextWeekday(10, 5);
+const SATURDAY = addDays(FRIDAY, 1);
+const SUNDAY = addDays(FRIDAY, 2);
+
+// Reserva de teste: bem depois dos dias usados nas checagens de preco.
+const checkIn = nextWeekday(25, 1);
+const checkOut = addDays(checkIn, 3);
 
 try {
   console.log('\n--- 1. cadastro e sessão');
@@ -103,21 +127,18 @@ try {
   r = await g.call('/api/auth/me');
   check('/auth/me autenticado', r.status === 200 && r.json?.user?.email === guest.email);
 
-  console.log('\n--- 2. guarda de tarifa não publicada');
-  r = await g.call('/api/reservations', { method: 'POST', body: {
-    propertyId: 'flat-praia-de-carneiros', checkIn, checkOut, guestCount: 2,
-    termsAccepted: true, idempotencyKey: `e2e-rate-${stamp}`
-  }});
-  check('reserva recusada com RATE_NOT_PUBLISHED', r.json?.error === 'RATE_NOT_PUBLISHED', `${r.status} ${r.json?.error}`);
+  // A guarda de "tarifa não publicada" é coberta em rates.test.ts: com o
+  // calendário preenchido não há estado sem tarifa para exercitar aqui sem
+  // apagar a tabela de preços real.
 
-  console.log('\n--- 3. admin publica tarifa e Pix');
+  console.log('\n--- 2. admin publica tarifa e Pix');
   await db.query(`update users set role = 'ADMIN' where email = $1`, [guest.email]);
   const a = session();
   r = await a.call('/api/auth/login', { method: 'POST', body: { identifier: guest.email, password: guest.password } });
   check('login por e-mail funciona', r.status === 200 && r.json?.user?.role === 'ADMIN', r.json?.user?.role);
 
   r = await a.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: {
-    nightlyRate: 650, depositPercentage: 50, minNights: 2, maxGuests: 4,
+    depositPercentage: 50, minNights: 1, maxGuests: 4,
     pixKey: 'e2e-teste@pix.local', pixHolderName: 'Flat Praia de Carneiros'
   }});
   check('PATCH da propriedade aceito', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -127,12 +148,33 @@ try {
   check('vitrine agora publica a diária', r.json?.property?.ratePublished === true);
   check('vitrine não expõe a chave Pix', !r.text.includes('e2e-teste@pix.local'));
 
+  console.log('\n--- 3. calendário de tarifas');
+  const quoteFor = async (from, to) =>
+    (await a.call(`/api/properties/flat-praia-de-carneiros/quote?checkIn=${from}&checkOut=${to}`)).json;
+
+  let q = await quoteFor(MONDAY, THURSDAY);
+  check('segunda a quinta: 3 noites x 300 = 900', q?.quote?.totalAmount === '900.00',
+    `${q?.quote?.totalAmount} em ${q?.quote?.nights} noites`);
+
+  q = await quoteFor(SATURDAY, SUNDAY);
+  check('sábado para domingo: 1000', q?.quote?.totalAmount === '1000.00', q?.quote?.totalAmount);
+
+  q = await quoteFor(FRIDAY, SUNDAY);
+  check('sexta a domingo: 400 + 1000 = 1400', q?.quote?.totalAmount === '1400.00', q?.quote?.totalAmount);
+  check('extrato detalha cada noite', (q?.quote?.lines ?? []).length === 2,
+    (q?.quote?.lines ?? []).map((l) => l.label).join(' + '));
+  check('sinal de 50% sobre 1400 = 700', q?.quote?.depositAmount === '700.00', q?.quote?.depositAmount);
+
   console.log('\n--- 4. regras de negócio');
+  await a.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: { minNights: 2 } });
   r = await a.call('/api/reservations', { method: 'POST', body: {
-    propertyId: 'flat-praia-de-carneiros', checkIn, checkOut: iso(1), guestCount: 2,
+    propertyId: 'flat-praia-de-carneiros', checkIn, checkOut: addDays(checkIn, 1), guestCount: 2,
     termsAccepted: true, idempotencyKey: `e2e-min-${stamp}`
   }});
-  check('estadia de 1 noite recusada (mínimo 2)', r.json?.error === 'BELOW_MIN_NIGHTS', r.json?.error);
+  check('estadia de 1 noite recusada quando o mínimo é 2', r.json?.error === 'BELOW_MIN_NIGHTS',
+    `${r.status} ${r.json?.error}`);
+  check('mínimo é devolvido ao cliente', r.json?.details?.minNights === 2, String(r.json?.details?.minNights));
+  await a.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: { minNights: 1 } });
 
   r = await a.call('/api/reservations', { method: 'POST', body: {
     propertyId: 'flat-praia-de-carneiros', checkIn, checkOut, guestCount: 9,
@@ -147,6 +189,7 @@ try {
   check('data no passado recusada', r.json?.error === 'CHECKIN_IN_THE_PAST', r.json?.error);
 
   console.log('\n--- 5. reserva');
+  const expected = await quoteFor(checkIn, checkOut);
   const key = `e2e-ok-${stamp}`;
   r = await a.call('/api/reservations', { method: 'POST', body: {
     propertyId: 'flat-praia-de-carneiros', checkIn, checkOut, guestCount: 2,
@@ -154,8 +197,13 @@ try {
   }});
   check('reserva criada com 201', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
   const reservation = r.json?.reservation;
-  check('3 noites x 650 = 1950,00', reservation?.total_amount === '1950.00', reservation?.total_amount);
-  check('sinal de 50% = 975,00', reservation?.deposit_amount === '975.00', reservation?.deposit_amount);
+  // O que importa não é um número fixo: é o valor cobrado bater com o exibido.
+  check('total gravado bate com o orçamento mostrado',
+    reservation?.total_amount === expected?.quote?.totalAmount,
+    `reserva ${reservation?.total_amount} vs orçamento ${expected?.quote?.totalAmount}`);
+  check('sinal gravado bate com o orçamento',
+    reservation?.deposit_amount === expected?.quote?.depositAmount,
+    `${reservation?.deposit_amount} vs ${expected?.quote?.depositAmount}`);
   check('datas voltam como YYYY-MM-DD, sem deslocamento de fuso',
     reservation?.check_in === checkIn && reservation?.check_out === checkOut,
     `${reservation?.check_in} → ${reservation?.check_out}`);
@@ -171,14 +219,14 @@ try {
   const rv = session();
   await rv.call('/api/auth/register', { method: 'POST', body: rival });
   r = await rv.call('/api/reservations', { method: 'POST', body: {
-    propertyId: 'flat-praia-de-carneiros', checkIn: iso(1), checkOut: iso(4), guestCount: 2,
+    propertyId: 'flat-praia-de-carneiros', checkIn: addDays(checkIn, 1), checkOut: addDays(checkIn, 4), guestCount: 2,
     termsAccepted: true, idempotencyKey: `e2e-clash-${stamp}`
   }});
   check('datas sobrepostas recusadas com 409', r.status === 409 && r.json?.error === 'DATES_UNAVAILABLE',
     `${r.status} ${r.json?.error}`);
 
   r = await rv.call('/api/reservations', { method: 'POST', body: {
-    propertyId: 'flat-praia-de-carneiros', checkIn: iso(3), checkOut: iso(5), guestCount: 2,
+    propertyId: 'flat-praia-de-carneiros', checkIn: addDays(checkIn, 3), checkOut: addDays(checkIn, 5), guestCount: 2,
     termsAccepted: true, idempotencyKey: `e2e-adj-${stamp}`
   }});
   check('estadia encostada no check-out é aceita', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
@@ -186,7 +234,7 @@ try {
 
   r = await a.call('/api/properties/flat-praia-de-carneiros/availability');
   const unavailable = r.json?.unavailable ?? [];
-  check('calendário passa a marcar as noites vendidas', unavailable.includes(checkIn) && unavailable.includes(iso(2)),
+  check('calendário passa a marcar as noites vendidas', unavailable.includes(checkIn) && unavailable.includes(addDays(checkIn, 2)),
     `${unavailable.length} noites`);
   check('availability não expõe o motivo do bloqueio', !r.text.includes('RESERVATION') && !r.text.includes('source'));
 
@@ -195,10 +243,13 @@ try {
   check('payment-intent devolve 201', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
   const intent = r.json;
   check('referência no formato CARN########', /^CARN[A-Z2-9]{8}$/.test(intent?.payment?.reference ?? ''), intent?.payment?.reference);
-  check('cobrança é do valor do sinal', intent?.payment?.amount === '975.00', intent?.payment?.amount);
+  check('cobrança é do valor do sinal', intent?.payment?.amount === expected.quote.depositAmount,
+    `${intent?.payment?.amount} vs ${expected.quote.depositAmount}`);
   const payload = intent?.pix?.payload ?? '';
   check('BR Code começa com 000201', payload.startsWith('000201'));
-  check('BR Code traz valor 975.00', payload.includes('5406975.00'));
+  // Tag 54 do BR Code: tamanho + valor, ex. "5406450.00" para R$ 450,00.
+  const amountTag = `54${String(expected.quote.depositAmount.length).padStart(2, '0')}${expected.quote.depositAmount}`;
+  check(`BR Code traz o valor do sinal (${expected.quote.depositAmount})`, payload.includes(amountTag), amountTag);
   check('CRC do BR Code confere', payload.slice(-4) === crc16(payload.slice(0, -4)), payload.slice(-4));
 
   const again = await a.call(`/api/reservations/${reservation.id}/payment-intent`, { method: 'POST' });
@@ -210,7 +261,7 @@ try {
 
   console.log('\n--- 8. pagamento parcial não expira a reserva');
   const before = (await db.query('select expires_at from reservations where id = $1', [reservation.id])).rows[0].expires_at;
-  r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: 975, status: 'PARTIAL' } });
+  r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.depositAmount), status: 'PARTIAL' } });
   check('sinal confirmado', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
   const afterPartial = (await db.query('select status, payment_status, expires_at from reservations where id = $1', [reservation.id])).rows[0];
   check('reserva segue viva como PENDING_PAYMENT', afterPartial.status === 'PENDING_PAYMENT', afterPartial.status);
@@ -225,7 +276,7 @@ try {
   check('varredor de holds não expira quem já pagou', survived.status === 'PENDING_PAYMENT', survived.status);
 
   console.log('\n--- 9. pagamento total confirma');
-  r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: 1950, status: 'PAID' } });
+  r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.totalAmount), status: 'PAID' } });
   check('pagamento total aceito', r.status === 200 && r.json?.status === 'CONFIRMED', r.json?.status);
 
   console.log('\n--- 10. sessão: renovação e revogação');
@@ -290,8 +341,11 @@ try {
   }
   await db.query(`delete from auth_attempts where identifier = any($1::text[])`, [emails]);
   // Devolve a propriedade ao estado anterior: não publico preço que não é meu.
-  await db.query('update properties set nightly_rate = $2, pix_key = $3, pix_holder_name = null where id = $1',
-    [propertyId, originalRate.nightly_rate, originalRate.pix_key]);
+  await db.query(
+    `update properties set nightly_rate = $2, pix_key = $3, pix_holder_name = null,
+            min_nights = $4, deposit_percentage = $5, max_guests = $6 where id = $1`,
+    [propertyId, original.nightly_rate, original.pix_key, original.min_nights,
+     original.deposit_percentage, original.max_guests]);
   const leftover = (await db.query(
     `select count(*)::int as n from reservations r join users u on u.id = r.customer_id where u.email like 'e2e-%'`)).rows[0].n;
   console.log(`  dados de teste removidos (sobras: ${leftover})`);

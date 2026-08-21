@@ -13,6 +13,14 @@ import { hash } from '@node-rs/argon2';
 
 const MIN_PASSWORD = 12;
 
+/**
+ * O minimo de 12 caracteres vale para o cadastro publico. Aqui e o operador
+ * escolhendo a credencial de uma conta que pode trocar a chave Pix do imovel,
+ * entao a excecao existe mas e explicita e fica registrada no log.
+ */
+const ALLOW_WEAK = process.env.ALLOW_WEAK_ADMIN_PASSWORD === '1';
+const HARD_FLOOR = 8;
+
 function required(name) {
   const value = process.env[name];
   if (!value) {
@@ -45,8 +53,20 @@ if (!admins.length) {
 
 for (const admin of admins) {
   if (admin.password.length < MIN_PASSWORD) {
-    console.error(`Senha de ${admin.username} precisa de ao menos ${MIN_PASSWORD} caracteres.`);
-    process.exit(1);
+    if (!ALLOW_WEAK) {
+      console.error(
+        `Senha de ${admin.username} tem ${admin.password.length} caracteres; o minimo e ${MIN_PASSWORD}.`
+      );
+      console.error('Use ALLOW_WEAK_ADMIN_PASSWORD=1 para assumir o risco conscientemente.');
+      process.exit(1);
+    }
+    if (admin.password.length < HARD_FLOOR) {
+      console.error(`Senha de ${admin.username} abaixo do piso absoluto de ${HARD_FLOOR} caracteres.`);
+      process.exit(1);
+    }
+    console.warn(
+      `AVISO: senha de ${admin.username} tem ${admin.password.length} caracteres, abaixo do minimo de ${MIN_PASSWORD}.`
+    );
   }
   if (!/^[A-Za-z0-9_]{3,80}$/.test(admin.username)) {
     // Mesma regra da constraint users_username_format: falha aqui é mais

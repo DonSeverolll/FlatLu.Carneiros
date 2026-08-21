@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { query, transaction, violatedConstraint } from './db';
 import { badRequest, conflict, notFound } from './errors';
 import { isIsoDate, nightsBetween, todayIso } from './dates';
-import { centsToNumeric, quote } from './pricing';
+import { centsToNumeric } from './pricing';
+import { assertBookable, quoteForProperty } from './quote';
+import { depositFor } from './rates';
 import { releaseExpiredHolds } from './inventory';
 import { findProperty } from './property';
 
@@ -34,9 +36,6 @@ export async function createReservation(
   // ---- Regras que o front-end não pode decidir -----------------------------
   const nights = nightsBetween(input.checkIn, input.checkOut);
   if (nights <= 0) throw badRequest('CHECKOUT_BEFORE_CHECKIN');
-  if (nights < property.min_nights) {
-    throw badRequest('BELOW_MIN_NIGHTS', { minNights: property.min_nights });
-  }
   if (input.guestCount > property.max_guests) {
     throw badRequest('ABOVE_MAX_GUESTS', { maxGuests: property.max_guests });
   }
@@ -47,14 +46,20 @@ export async function createReservation(
     throw badRequest('BEYOND_BOOKING_HORIZON', { horizonDays: property.booking_horizon_days });
   }
 
-  // A diária ainda não publicada geraria uma reserva de R$ 0,00.
-  if (Number(property.nightly_rate) <= 0) throw conflict('RATE_NOT_PUBLISHED');
+  /**
+   * O preço vem do calendário de tarifas, não de uma diária única: dia da
+   * semana, períodos especiais, pacotes fechados e estadia mínima por dia de
+   * chegada saem todos daqui. `assertBookable` recusa antes de tocar no
+   * estoque — é a mesma função que responde o orçamento da vitrine, então o
+   * valor mostrado e o valor gravado não podem divergir.
+   */
+  const stayQuote = await quoteForProperty(property, input.checkIn, input.checkOut);
+  assertBookable(stayQuote);
 
-  const amounts = quote({
-    nightlyRate: property.nightly_rate,
-    depositPercentage: property.deposit_percentage,
-    nights
-  });
+  const amounts = {
+    totalCents: stayQuote.totalCents,
+    depositCents: depositFor(stayQuote.totalCents, property.deposit_percentage)
+  };
 
   return transaction(async (client) => {
     // Dentro da transação: garante que holds vencidos já liberaram o gist.
@@ -64,9 +69,9 @@ export async function createReservation(
       `INSERT INTO reservations (
          property_id, customer_id, check_in, check_out, guest_count,
          total_amount, deposit_amount, terms_accepted, accepted_terms_version,
-         accepted_at, accepted_ip, idempotency_key, expires_at
+         accepted_at, accepted_ip, idempotency_key, expires_at, rate_breakdown
        ) VALUES ($1, $2, $3::date, $4::date, $5, $6, $7, true, $8, now(), $9, $10,
-                 now() + ($11 || ' minutes')::interval)
+                 now() + ($11 || ' minutes')::interval, $12::jsonb)
        -- O predicado e obrigatorio: reservations_idempotency_unique e um
        -- indice PARCIAL, e o PostgreSQL so consegue inferi-lo como arbitro
        -- quando o ON CONFLICT repete o WHERE do indice. Sem isso: erro 42P10.
@@ -84,7 +89,10 @@ export async function createReservation(
         property.terms_version,
         context.ip ?? null,
         input.idempotencyKey,
-        String(property.hold_minutes)
+        String(property.hold_minutes),
+        // Sem o extrato, uma reserva antiga fica sem explicação depois que a
+        // tabela de preços muda.
+        JSON.stringify({ lines: stayQuote.lines, appliedPeriods: stayQuote.appliedPeriods })
       ]
     );
 
@@ -137,7 +145,8 @@ export async function createReservation(
           totalCents: amounts.totalCents,
           depositCents: amounts.depositCents,
           checkIn: input.checkIn,
-          checkOut: input.checkOut
+          checkOut: input.checkOut,
+          appliedPeriods: stayQuote.appliedPeriods
         })
       ]
     );

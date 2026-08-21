@@ -48,8 +48,23 @@ export async function findProperty(idOrSlug: string): Promise<PropertyRow> {
   return property;
 }
 
-/** Vitrine pública: nunca expõe chave Pix nem termos completos. */
-export function publicProperty(property: PropertyRow) {
+export type RateSummary = {
+  /** Menor tarifa publicada, para o "a partir de" da vitrine. */
+  fromCents: number | null;
+  weekdays: { weekday: number; nightlyCents: number; minNightsOnArrival: number | null }[];
+  periods: { name: string; startsOn: string; endsOn: string }[];
+};
+
+/** Vitrine pública: nunca expõe chave Pix. */
+export function publicProperty(property: PropertyRow, rates?: RateSummary) {
+  /**
+   * `ratePublished` deixou de ser "nightly_rate > 0": com calendário de
+   * tarifas, basta existir uma tarifa de dia da semana. A diária da
+   * propriedade segue como fallback para dias sem regra.
+   */
+  const ratePublished =
+    Number(property.nightly_rate) > 0 || (rates?.fromCents ?? 0) > 0;
+
   return {
     id: property.id,
     name: property.name,
@@ -69,8 +84,9 @@ export function publicProperty(property: PropertyRow) {
     termsContent: property.terms_content,
     heroImageUrl: property.hero_image_url,
     amenities: property.amenities,
-    /** Enquanto a diária não for publicada, o site não inventa preço. */
-    ratePublished: Number(property.nightly_rate) > 0
+    ratePublished,
+    /** Só a estrutura de preços; o valor de uma estadia vem de /quote. */
+    rates: rates ?? null
   };
 }
 

@@ -1,3 +1,36 @@
+export type RateSummaryDto = {
+  /** Menor tarifa publicada, para o "a partir de" da vitrine. */
+  fromCents: number | null;
+  weekdays: { weekday: number; nightlyCents: number; minNightsOnArrival: number | null }[];
+  periods: { name: string; startsOn: string; endsOn: string }[];
+};
+
+export type QuoteLineDto =
+  | { kind: 'NIGHT'; date: string; label: string; amountCents: number }
+  | { kind: 'PACKAGE'; label: string; nights: string[]; amountCents: number };
+
+export type QuoteDto = {
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  minNights: number;
+  lines: QuoteLineDto[];
+  appliedPeriods: string[];
+  totalCents: number;
+  depositCents: number;
+  balanceCents: number;
+  totalAmount: string;
+  depositAmount: string;
+  bookable: boolean;
+  problems: { code: string; [key: string]: unknown }[];
+};
+
+export type QuoteResponseDto = {
+  quote: QuoteDto;
+  available: boolean;
+  currency: string;
+};
+
 export type PublicPropertyDto = {
   id: string;
   name: string;
@@ -18,6 +51,7 @@ export type PublicPropertyDto = {
   heroImageUrl: string | null;
   amenities: string[];
   ratePublished: boolean;
+  rates: RateSummaryDto | null;
 };
 
 export type AvailabilityDto = {

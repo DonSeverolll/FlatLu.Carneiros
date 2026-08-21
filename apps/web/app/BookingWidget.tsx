@@ -1,10 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, messageFor } from '@/lib/api';
-import { brl, longDate } from '@/lib/format';
-import type { AvailabilityDto, PublicPropertyDto, ReservationDto } from '@/lib/types';
+import { brl, longDate, shortDate } from '@/lib/format';
+import type {
+  AvailabilityDto,
+  PublicPropertyDto,
+  QuoteResponseDto,
+  ReservationDto
+} from '@/lib/types';
 
 type Props = {
   property: PublicPropertyDto;
@@ -37,25 +42,50 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
   const [showTerms, setShowTerms] = useState(false);
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [quote, setQuote] = useState<QuoteResponseDto | null>(null);
+  const [quoting, setQuoting] = useState(false);
 
   const days = useMemo(() => {
     const horizon = Math.min(property.bookingHorizonDays, 180);
     return Array.from({ length: horizon }, (_, index) => addDays(startDate, index));
   }, [startDate, property.bookingHorizonDays]);
 
-  const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
+  /** Tarifa de cada dia do calendário, só para o rótulo — o total vem da API. */
+  const rateByWeekday = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const rate of property.rates?.weekdays ?? []) map.set(rate.weekday, rate.nightlyCents);
+    return map;
+  }, [property.rates]);
 
   /**
-   * Preço só aparece quando o anfitrião publicou a diária. Enquanto
-   * `nightly_rate` for zero, a vitrine diz "sob consulta" em vez de anunciar
-   * R$ 0,00 — e a API recusa a reserva pelo mesmo motivo.
+   * O preço é sempre do servidor. Calcular no navegador significaria duplicar
+   * as regras de dia da semana, período especial e pacote fechado — e divergir
+   * do valor que a reserva vai gravar.
    */
-  const totalCents = property.ratePublished
-    ? Math.round(Number(property.nightlyRate) * 100) * nights
-    : 0;
-  const depositCents = Math.round((totalCents * Number(property.depositPercentage)) / 100);
+  useEffect(() => {
+    if (!checkIn || !checkOut || nightsBetween(checkIn, checkOut) <= 0) {
+      setQuote(null);
+      return;
+    }
+    let active = true;
+    setQuoting(true);
+    api<QuoteResponseDto>(
+      `/api/properties/${property.slug}/quote?checkIn=${checkIn}&checkOut=${checkOut}`
+    )
+      .then((data) => {
+        if (active) setQuote(data);
+      })
+      .catch(() => {
+        if (active) setQuote(null);
+      })
+      .finally(() => {
+        if (active) setQuoting(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [checkIn, checkOut, property.slug]);
 
-  /** Toda noite do intervalo precisa estar livre, não só as pontas. */
   function rangeIsFree(from: string, to: string): boolean {
     for (let day = from; day < to; day = addDays(day, 1)) {
       if (unavailable.has(day)) return false;
@@ -74,11 +104,6 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
       setStatus('Há noites ocupadas nesse intervalo. Escolha outro período.');
       return;
     }
-    const selectedNights = nightsBetween(checkIn, day);
-    if (selectedNights < property.minNights) {
-      setStatus(`A estadia mínima é de ${property.minNights} noites.`);
-      return;
-    }
     setCheckOut(day);
   }
 
@@ -92,7 +117,7 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
   }
 
   async function reserve() {
-    if (!checkIn || !checkOut || nights <= 0) {
+    if (!checkIn || !checkOut) {
       setStatus('Escolha a data de entrada e a de saída.');
       return;
     }
@@ -117,12 +142,14 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
       router.push(`/reserva/${reservation.id}`);
     } catch (error) {
       setStatus(messageFor(error));
-      // 409 significa que outra pessoa fechou essas datas agora: recarrega.
       await refreshAvailability();
     } finally {
       setSubmitting(false);
     }
   }
+
+  const fromLabel = property.rates?.fromCents ? brl(property.rates.fromCents / 100) : null;
+  const canReserve = Boolean(quote?.quote.bookable && quote.available && termsAccepted);
 
   return (
     <div className="booking-widget">
@@ -131,8 +158,21 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
           <p className="eyebrow">Disponibilidade</p>
           <h2>Escolha seus dias.</h2>
         </div>
-        <span>Próximos {days.length} dias</span>
+        <span>
+          {fromLabel ? `A partir de ${fromLabel} a noite · ` : ''}
+          próximos {days.length} dias
+        </span>
       </div>
+
+      {property.rates?.periods.length ? (
+        <div className="amenities periods">
+          {property.rates.periods.map((period) => (
+            <span key={`${period.name}-${period.startsOn}`}>
+              {period.name}: {shortDate(period.startsOn)} a {shortDate(period.endsOn)}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="date-grid">
         {days.map((day) => {
@@ -140,7 +180,8 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
           const isEdge = day === checkIn || day === checkOut;
           const inRange = Boolean(checkIn && checkOut && day > checkIn && day < checkOut);
           const [, , dayNumber] = day.split('-');
-          const weekday = WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()];
+          const weekdayIndex = new Date(`${day}T12:00:00Z`).getUTCDay();
+          const cents = rateByWeekday.get(weekdayIndex);
           return (
             <button
               className={`date${isEdge ? ' selected' : ''}${inRange ? ' in-range' : ''}`}
@@ -150,8 +191,9 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
               type="button"
               aria-label={`${longDate(day)}${blocked ? ' — indisponível' : ''}`}
             >
-              <small>{weekday}</small>
+              <small>{WEEKDAYS[weekdayIndex]}</small>
               <strong>{Number(dayNumber)}</strong>
+              {cents ? <em>{Math.round(cents / 100)}</em> : null}
             </button>
           );
         })}
@@ -176,7 +218,7 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
             <input
               type="date"
               value={checkOut}
-              min={checkIn ? addDays(checkIn, property.minNights) : startDate}
+              min={checkIn ? addDays(checkIn, 1) : startDate}
               onChange={(event) => setCheckOut(event.target.value)}
             />
           </label>
@@ -195,27 +237,61 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
         </div>
 
         <div className="quote">
-          {property.ratePublished ? (
+          {!checkIn || !checkOut ? (
+            <>
+              <span>Selecione entrada e saída</span>
+              <strong>{fromLabel ?? 'Tarifa sob consulta'}</strong>
+              <small>
+                {property.ratePublished
+                  ? 'O valor exato depende dos dias escolhidos.'
+                  : 'Envie um pedido e o anfitrião confirma o valor.'}
+              </small>
+            </>
+          ) : quoting ? (
+            <span>Calculando...</span>
+          ) : quote?.quote.bookable ? (
             <>
               <span>
-                {nights} {nights === 1 ? 'noite' : 'noites'}
-                {nights > 0 && ` × ${brl(property.nightlyRate)}`}
+                {quote.quote.nights} {quote.quote.nights === 1 ? 'noite' : 'noites'}
+                {!quote.available && ' — datas ocupadas'}
               </span>
-              <strong>{brl(totalCents / 100)}</strong>
+              <strong>{brl(quote.quote.totalAmount)}</strong>
               <small>
                 Sinal de {Number(property.depositPercentage).toFixed(0)}%:{' '}
-                {brl(depositCents / 100)}
+                {brl(quote.quote.depositAmount)}
               </small>
             </>
           ) : (
             <>
-              <span>{nights > 0 ? `${nights} noite(s)` : 'Selecione as datas'}</span>
-              <strong>Tarifa sob consulta</strong>
-              <small>Envie um pedido e o anfitrião confirma o valor.</small>
+              <span>{quote?.quote.nights ?? 0} noite(s)</span>
+              <strong>Indisponível</strong>
+              <small>{quote ? describeProblems(quote) : 'Não foi possível orçar.'}</small>
             </>
           )}
         </div>
       </div>
+
+      {/* Extrato aberto: o hóspede vê de onde vem cada valor. */}
+      {quote?.quote.bookable && quote.quote.lines.length > 1 && (
+        <table className="rate-breakdown">
+          <tbody>
+            {quote.quote.lines.map((line, index) => (
+              <tr key={index}>
+                <td>
+                  {line.kind === 'NIGHT'
+                    ? `${shortDate(line.date)} · ${line.label}`
+                    : `${line.label} · ${line.nights.length} noites`}
+                </td>
+                <td>{brl(line.amountCents / 100)}</td>
+              </tr>
+            ))}
+            <tr className="total">
+              <td>Total</td>
+              <td>{brl(quote.quote.totalAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       <label className="terms">
         <input
@@ -233,7 +309,12 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
       </label>
       {showTerms && <pre className="terms-content">{property.termsContent}</pre>}
 
-      <button className="button" type="button" onClick={() => void reserve()} disabled={submitting}>
+      <button
+        className="button"
+        type="button"
+        onClick={() => void reserve()}
+        disabled={submitting || !canReserve}
+      >
         {submitting ? 'Enviando...' : 'Solicitar reserva'}
       </button>
       <p className="hint">
@@ -242,4 +323,25 @@ export default function BookingWidget({ property, initialUnavailable, startDate 
       {status && <p className="feedback">{status}</p>}
     </div>
   );
+}
+
+/** Explica em português por que o intervalo escolhido não fecha. */
+function describeProblems(response: QuoteResponseDto): string {
+  if (!response.available) return 'Estas datas já estão ocupadas.';
+  const problem = response.quote.problems[0];
+  if (!problem) return 'Escolha outro intervalo.';
+  switch (problem.code) {
+    case 'BELOW_MIN_NIGHTS':
+      return `Estadia mínima de ${problem.minNights} noites para essa data de entrada.`;
+    case 'NIGHT_NOT_BOOKABLE':
+      return 'Uma das noites escolhidas não é alugada avulsa.';
+    case 'ARRIVAL_NOT_ALLOWED':
+      return 'Não há check-in nesse dia da semana.';
+    case 'PERIOD_REQUIRES_FULL_STAY':
+      return `${problem.periodName} é pacote fechado: a estadia precisa cobrir o período inteiro.`;
+    case 'RATE_NOT_PUBLISHED':
+      return 'A tarifa dessas datas ainda não foi publicada.';
+    default:
+      return 'Escolha outro intervalo.';
+  }
 }

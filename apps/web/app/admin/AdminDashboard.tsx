@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, messageFor } from '@/lib/api';
 import { PAYMENT_LABEL, STATUS_LABEL, brl, shortDate } from '@/lib/format';
+import RatePanel from './RatePanel';
 
 type AdminReservation = {
   id: string;
@@ -29,6 +30,7 @@ type PropertySummary = {
   maxGuests: number;
   pixConfigured: boolean;
   pixHolderName: string | null;
+  ratePublished: boolean;
 };
 
 function isoToday(offsetDays = 0): string {
@@ -41,7 +43,7 @@ export default function AdminDashboard({ property }: { property: PropertySummary
   const [reservations, setReservations] = useState<AdminReservation[]>([]);
   const [message, setMessage] = useState('Carregando painel...');
   const [busy, setBusy] = useState<string | null>(null);
-  const [rateDraft, setRateDraft] = useState(property.nightlyRate);
+
 
   const load = useCallback(async () => {
     try {
@@ -156,7 +158,6 @@ export default function AdminDashboard({ property }: { property: PropertySummary
     }
   }
 
-  const ratePublished = Number(rateDraft) > 0;
 
   return (
     <main className="account admin-page">
@@ -166,9 +167,10 @@ export default function AdminDashboard({ property }: { property: PropertySummary
       <p className="eyebrow">Painel administrativo</p>
       <h1>Operação do flat.</h1>
 
-      {(!ratePublished || !property.pixConfigured) && (
+      {(!property.ratePublished || !property.pixConfigured) && (
         <p className="feedback" role="status">
-          {!ratePublished && 'A diária ainda não foi publicada, então a vitrine mostra "sob consulta" e reservas são recusadas. '}
+          {!property.ratePublished &&
+            'Nenhuma tarifa publicada: a vitrine mostra "sob consulta" e reservas são recusadas. '}
           {!property.pixConfigured && 'A chave Pix não está configurada, então não é possível cobrar o sinal.'}
         </p>
       )}
@@ -248,13 +250,8 @@ export default function AdminDashboard({ property }: { property: PropertySummary
         <form className="panel" onSubmit={saveSettings}>
           <h2>Tarifa e Pix</h2>
           <label>
-            Diária (R$)
-            <input
-              name="nightlyRate"
-              inputMode="decimal"
-              defaultValue={property.nightlyRate}
-              onChange={(event) => setRateDraft(event.target.value)}
-            />
+            Diária de fallback (R$)
+            <input name="nightlyRate" inputMode="decimal" defaultValue={property.nightlyRate} />
           </label>
           <label>
             Sinal (%)
@@ -283,8 +280,9 @@ export default function AdminDashboard({ property }: { property: PropertySummary
             {busy === 'settings' ? 'Salvando...' : 'Salvar'}
           </button>
           <p className="hint">
-            A chave Pix nunca é devolvida pela API depois de salva — só o QR gerado no servidor a
-            usa.
+            A diária de fallback só vale para dias sem tarifa própria; o preço normal vem do
+            calendário abaixo. A chave Pix nunca é devolvida pela API depois de salva — só o QR
+            gerado no servidor a usa.
           </p>
         </form>
 
@@ -319,6 +317,8 @@ export default function AdminDashboard({ property }: { property: PropertySummary
           </p>
         </form>
       </div>
+
+      <RatePanel propertyId={property.id} />
 
       {message && (
         <p className="feedback" role="status">

@@ -76,7 +76,10 @@ const MESSAGES: Record<string, string> = {
   BELOW_MIN_NIGHTS: 'A estadia é menor que o mínimo de noites.',
   ABOVE_MAX_GUESTS: 'Número de hóspedes acima da capacidade do flat.',
   BEYOND_BOOKING_HORIZON: 'Ainda não abrimos reservas para essa data.',
-  RATE_NOT_PUBLISHED: 'A diária ainda não foi publicada. Fale com o anfitrião.',
+  RATE_NOT_PUBLISHED: 'A tarifa dessas datas ainda não foi publicada. Fale com o anfitrião.',
+  NIGHTS_NOT_BOOKABLE: 'Uma das noites escolhidas não é alugada avulsa.',
+  ARRIVAL_NOT_ALLOWED: 'Não há check-in neste dia da semana.',
+  PERIOD_REQUIRES_FULL_STAY: 'Esse período é vendido como pacote fechado.',
   PAYMENT_METHOD_NOT_CONFIGURED: 'O pagamento ainda não foi configurado pelo anfitrião.',
   RESERVATION_NOT_PAYABLE: 'Esta reserva não está mais aberta para pagamento.',
   ALREADY_PAID: 'Esta reserva já está paga.',
@@ -97,6 +100,16 @@ export function messageFor(error: unknown): string {
     if (error.code === 'BELOW_MIN_NIGHTS') {
       const min = (error.details as { minNights?: number } | undefined)?.minNights;
       return min ? `A estadia mínima é de ${min} noites.` : MESSAGES.BELOW_MIN_NIGHTS;
+    }
+    if (error.code === 'ARRIVAL_NOT_ALLOWED') {
+      const label = (error.details as { weekdayLabel?: string } | undefined)?.weekdayLabel;
+      return label ? `Não há check-in em ${label.toLowerCase()}.` : MESSAGES.ARRIVAL_NOT_ALLOWED;
+    }
+    if (error.code === 'PERIOD_REQUIRES_FULL_STAY') {
+      const d = error.details as { periodName?: string; startsOn?: string; endsOn?: string } | undefined;
+      return d?.periodName
+        ? `${d.periodName} é pacote fechado: a estadia precisa cobrir de ${d.startsOn} a ${d.endsOn}.`
+        : MESSAGES.PERIOD_REQUIRES_FULL_STAY;
     }
     if (error.code === 'ABOVE_MAX_GUESTS') {
       const max = (error.details as { maxGuests?: number } | undefined)?.maxGuests;

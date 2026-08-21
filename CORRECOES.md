@@ -50,6 +50,10 @@ SQL Editor.
 Cálculo migrado para centavos inteiros: `199,99 × 7` dava
 `1399.9299999999998` em float e divergia do que o banco gravava.
 
+Depois disso a diária única deu lugar a um **calendário de tarifas** (preço por
+dia da semana, períodos especiais, pacotes fechados e estadia mínima por dia de
+chegada). Ver [README](README.md#calendário-de-tarifas).
+
 ## 4. Pagamento parcial expirava a reserva
 
 Com `PARTIAL`, a reserva seguia em `PENDING_PAYMENT` sem estender `expires_at` —

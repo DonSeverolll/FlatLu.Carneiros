@@ -106,3 +106,19 @@ textarea { background: transparent; border: 1px solid rgba(23,63,69,.25); color:
 select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: var(--ink); font: inherit; padding: 12px; }
 .text-button:disabled { cursor: not-allowed; opacity: .5; }
 @media (max-width: 760px) { .admin-actions { justify-content: flex-start; } }
+
+/* Calendário com tarifa por dia e extrato do orçamento */
+.date em { color: var(--muted); font-size: 10px; font-style: normal; }
+.date.selected em { color: rgba(255,255,255,.85); }
+.date:disabled em { color: rgba(23,63,69,.3); }
+.periods { margin: 22px 0 0; }
+.periods span { background: rgba(231,111,81,.1); border-color: rgba(231,111,81,.35); }
+.rate-breakdown { border-collapse: collapse; margin-top: 26px; width: 100%; }
+.rate-breakdown td { border-bottom: 1px solid rgba(23,63,69,.14); color: var(--muted); font-size: 14px; padding: 11px 0; }
+.rate-breakdown td:last-child { text-align: right; }
+.rate-breakdown tr.total td { border-bottom: 0; color: var(--ink); font-weight: 700; }
+.rate-grid { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.rate-grid label { margin: 0; }
+.period-row { align-items: baseline; border-top: 1px solid rgba(23,63,69,.14); display: flex; gap: 12px; justify-content: space-between; padding: 14px 0; }
+.period-row div { display: grid; gap: 5px; }
+.period-row span { color: var(--muted); font-size: 13px; }
