@@ -67,7 +67,11 @@ export async function createReservation(
          accepted_at, accepted_ip, idempotency_key, expires_at
        ) VALUES ($1, $2, $3::date, $4::date, $5, $6, $7, true, $8, now(), $9, $10,
                  now() + ($11 || ' minutes')::interval)
-       ON CONFLICT (customer_id, idempotency_key) DO NOTHING
+       -- O predicado e obrigatorio: reservations_idempotency_unique e um
+       -- indice PARCIAL, e o PostgreSQL so consegue inferi-lo como arbitro
+       -- quando o ON CONFLICT repete o WHERE do indice. Sem isso: erro 42P10.
+       ON CONFLICT (customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+       DO NOTHING
        RETURNING ${RESERVATION_COLUMNS}`,
       [
         property.id,

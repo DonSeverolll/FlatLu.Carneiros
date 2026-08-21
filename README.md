@@ -141,3 +141,25 @@ npm run promote:admin voce@email.com
 ## O que foi corrigido
 
 Ver [CORRECOES.md](CORRECOES.md) — inclui o que **não** foi verificado.
+
+## Teste de fumaça
+
+`npm run test` cobre a lógica pura. O que só quebra com um banco do outro lado
+(inferência de índice parcial, tipo de parâmetro em enum, rotação de sessão)
+precisa do teste de fumaça:
+
+```bash
+BASE=http://localhost:3000 SMOKE_CONFIRM=1 npm run db:smoke
+```
+
+São 48 verificações do fluxo inteiro. Ele cria usuários `e2e-*@teste.local`,
+faz reservas e **altera a diária e a chave Pix da propriedade**, restaurando
+tudo no final — por isso a confirmação explícita. Não rode contra produção em
+horário de venda.
+
+## Notas de infraestrutura
+
+- A connection string **direta** do Supabase (`db.<ref>.supabase.co`) é
+  IPv6-only. Em rede sem IPv6 ela nem resolve; use sempre o pooler.
+- Pooler em **modo transação** (6543) para a aplicação; **modo sessão** (5432)
+  para DDL. O `db:migrate` troca a porta sozinho quando detecta a 6543.

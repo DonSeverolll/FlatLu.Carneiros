@@ -12,7 +12,8 @@
     "test": "npm --workspace apps/web run test",
     "db:migrate": "node --env-file-if-exists=apps/web/.env.local scripts/migrate.mjs",
     "seed:admins": "node --env-file-if-exists=apps/web/.env.local scripts/seed-admins.mjs",
-    "promote:admin": "node --env-file-if-exists=apps/web/.env.local scripts/promote-admin.mjs"
+    "promote:admin": "node --env-file-if-exists=apps/web/.env.local scripts/promote-admin.mjs",
+    "db:smoke": "node --env-file-if-exists=apps/web/.env.local scripts/smoke.mjs"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,

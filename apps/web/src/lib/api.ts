@@ -86,6 +86,9 @@ const MESSAGES: Record<string, string> = {
   SERVICE_NOT_CONFIGURED: 'Serviço em configuração. Tente novamente mais tarde.',
   INVALID_INPUT: 'Confira os dados informados.',
   CROSS_ORIGIN_BLOCKED: 'Requisição bloqueada por segurança. Recarregue a página.',
+  REFRESH_RACE: 'Sessão sendo renovada. Tente de novo em instantes.',
+  REFRESH_TOKEN_REUSED: 'Sua sessão foi encerrada por segurança. Entre novamente.',
+  SESSION_EXPIRED: 'Sua sessão expirou. Entre novamente.',
   INTERNAL_ERROR: 'Algo deu errado do nosso lado. Tente novamente.'
 };
 

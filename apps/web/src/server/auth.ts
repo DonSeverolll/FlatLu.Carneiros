@@ -7,7 +7,7 @@ import {
   REFRESH_TOKEN_TTL_SECONDS,
   config
 } from './config';
-import { query } from './db';
+import { query, transaction } from './db';
 import { forbidden, unauthorized } from './errors';
 
 export const SESSION_COOKIE = 'session';
@@ -116,11 +116,16 @@ export async function rotateSession(context: { ip?: string | null; userAgent?: s
     id: string;
     user_id: string;
     revoked_at: string | null;
+    revoked_reason: string | null;
+    just_rotated: boolean;
     expired: boolean;
     role: 'CUSTOMER' | 'ADMIN';
     status: string;
   }>(
-    `SELECT s.id, s.user_id, s.revoked_at, s.expires_at <= now() AS expired, u.role, u.status
+    `SELECT s.id, s.user_id, s.revoked_at, s.revoked_reason,
+            s.revoked_at > now() - interval '10 seconds' AS just_rotated,
+            s.expires_at <= now() AS expired,
+            u.role, u.status
      FROM user_sessions s JOIN users u ON u.id = s.user_id
      WHERE s.refresh_token_hash = $1`,
     [presentedHash]
@@ -133,6 +138,15 @@ export async function rotateSession(context: { ip?: string | null; userAgent?: s
   }
 
   if (session.revoked_at) {
+    /**
+     * Duas abas renovando no mesmo instante apresentam o mesmo token. Isso e
+     * corrida, nao vazamento: dentro de 10 segundos da rotacao legitima
+     * recusamos a chamada sem derrubar as sessoes (o cookie compartilhado do
+     * navegador ja tem o token novo). Fora dessa janela, e replay.
+     */
+    if (session.revoked_reason === 'ROTATED' && session.just_rotated) {
+      throw unauthorized('REFRESH_RACE');
+    }
     await query(
       `UPDATE user_sessions SET revoked_at = now(), revoked_reason = 'REUSE_DETECTED'
        WHERE user_id = $1 AND revoked_at IS NULL`,
@@ -148,21 +162,32 @@ export async function rotateSession(context: { ip?: string | null; userAgent?: s
     throw unauthorized('SESSION_EXPIRED');
   }
 
+  /**
+   * A rotacao revoga a linha antiga e cria uma nova, em vez de sobrescrever o
+   * hash. Sobrescrever apagava a prova: um token vazado reapresentado depois
+   * caia em "nao encontrado" e a deteccao de reuso nunca disparava. Guardando
+   * a linha revogada, o replay e reconhecido e derruba todas as sessoes.
+   */
   const nextToken = randomBytes(32).toString('base64url');
-  await query(
-    `UPDATE user_sessions
-     SET refresh_token_hash = $2, last_used_at = now(),
-         expires_at = now() + ($3 || ' seconds')::interval,
-         user_agent = COALESCE($4, user_agent), ip = COALESCE($5, ip)
-     WHERE id = $1`,
-    [
-      session.id,
-      hashRefreshToken(nextToken),
-      String(REFRESH_TOKEN_TTL_SECONDS),
-      context.userAgent?.slice(0, 400) ?? null,
-      context.ip ?? null
-    ]
-  );
+  await transaction(async (client) => {
+    await client.query(
+      `UPDATE user_sessions
+       SET revoked_at = now(), revoked_reason = 'ROTATED', last_used_at = now()
+       WHERE id = $1`,
+      [session.id]
+    );
+    await client.query(
+      `INSERT INTO user_sessions (user_id, refresh_token_hash, user_agent, ip, expires_at)
+       VALUES ($1, $2, $3, $4, now() + ($5 || ' seconds')::interval)`,
+      [
+        session.user_id,
+        hashRefreshToken(nextToken),
+        context.userAgent?.slice(0, 400) ?? null,
+        context.ip ?? null,
+        String(REFRESH_TOKEN_TTL_SECONDS)
+      ]
+    );
+  });
   await setSessionCookies(session.user_id, session.role, nextToken);
   return { id: session.user_id, role: session.role } satisfies Session;
 }

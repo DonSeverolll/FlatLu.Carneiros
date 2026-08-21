@@ -142,17 +142,54 @@ descartado — tudo foi portado para a nova arquitetura:
 - **`.vscode/tasks.json`** atualizado: as tarefas `dev:api`/`dev:web` deixaram
   de existir com a consolidação.
 
-## Verificação
+## Bugs encontrados só ao rodar contra o banco
 
-Rodados nesta máquina:
+Com o Supabase configurado, um teste ponta a ponta (`npm run db:smoke`)
+encontrou três defeitos que **passaram** por typecheck, testes de unidade e
+build. Dois deles vinham do código original e nunca haviam aparecido porque
+nada havia sido executado contra um PostgreSQL.
+
+**1. `ON CONFLICT` não inferia índice parcial** (`42P10`) — herdado do original.
+`reservations_idempotency_unique` e `payments_provider_transaction_unique` são
+índices parciais (`WHERE ... IS NOT NULL`), e o PostgreSQL só os aceita como
+árbitro se o `ON CONFLICT` repetir o mesmo predicado. Sem isso, **toda criação
+de reserva devolvia 500** — o fluxo principal do site estava inteiramente
+quebrado.
+
+**2. Parâmetro com dois tipos na mesma query** (`42P08`) — herdado do original.
+`$2` era usado como `payment_status` em `SET status = $2` e como texto em
+`CASE WHEN $2 IN ('PAID','PARTIAL')`; o planejador não reconcilia
+`text versus payment_status`. Derrubava toda confirmação de pagamento. Resolvido
+com cast explícito nas duas ocorrências.
+
+**3. Rotação de refresh token apagava a prova de reuso** — introduzido na
+correção da falha 5. A rotação sobrescrevia `refresh_token_hash` na mesma linha,
+então um token vazado reapresentado depois caía em "não encontrado" em vez de
+"reutilizado": a detecção de reuso simplesmente não funcionava. Agora a linha
+antiga é revogada como `ROTATED` e uma nova é criada.
+
+O mesmo teste expôs um efeito colateral da rotação estrita: duas abas renovando
+no mesmo instante apresentam o mesmo token e derrubariam todas as sessões do
+usuário. Dentro de 10 segundos da rotação legítima isso é tratado como corrida
+(`REFRESH_RACE`, sem revogação em massa); fora da janela, é replay.
+
+## Verificação
 
 ```
 npm run typecheck   # sem erros
-npm run test        # 27 testes, 4 arquivos
-npm run build       # 20 rotas de API + 6 páginas
+npm run test        # 27 testes de unidade
+npm run build       # 21 rotas de API + 7 páginas
+npm run db:smoke    # 48 verificações contra o Supabase real
 ```
 
-**Não verificado:** qualquer coisa que exija banco (nem PostgreSQL nem Docker
-disponíveis aqui) e o serviço Java (sem JDK). O caminho de dados precisa de um
-teste contra o banco real depois do primeiro deploy — começando por
-`GET /api/health`.
+O teste de fumaça cobre: cadastro e login (por e-mail e por usuário), guarda de
+tarifa não publicada, estadia mínima, capacidade, data no passado, criação de
+reserva com valores conferidos em centavos, idempotência por chave, recusa de
+datas sobrepostas, aceite de estadia encostada no check-out, cobrança Pix com
+CRC validado, QR em SVG, pagamento parcial que não expira, confirmação total,
+rotação e reuso de refresh token, autorização de CUSTOMER contra rotas de admin,
+trilha de auditoria e liberação de data no cancelamento.
+
+**Não verificado:** o serviço Java (sem JDK nesta máquina) e o comportamento sob
+o pooler em modo transação do Vercel — as migrações e o teste de fumaça rodaram
+pelo modo sessão (porta 5432).

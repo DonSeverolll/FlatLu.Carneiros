@@ -197,10 +197,11 @@ export async function settlePayment(input: {
     if (pending.rows[0]) {
       await client.query(
         `UPDATE payments
-         SET status = $2, provider = $3,
+         SET status = $2::payment_status, provider = $3,
              provider_transaction_id = COALESCE($4, provider_transaction_id),
              amount = $5,
-             paid_at = CASE WHEN $2 IN ('PAID', 'PARTIAL') THEN now() ELSE NULL END,
+             paid_at = CASE WHEN $2::payment_status IN ('PAID', 'PARTIAL')
+                            THEN now() ELSE NULL END,
              updated_at = now()
          WHERE id = $1`,
         [
@@ -214,8 +215,11 @@ export async function settlePayment(input: {
     } else {
       await client.query(
         `INSERT INTO payments (reservation_id, provider, provider_transaction_id, amount, status, paid_at)
-         VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 IN ('PAID','PARTIAL') THEN now() ELSE NULL END)
+         VALUES ($1, $2, $3, $4, $5::payment_status,
+                 CASE WHEN $5::payment_status IN ('PAID','PARTIAL') THEN now() ELSE NULL END)
+         -- Mesmo caso: payments_provider_transaction_unique e parcial.
          ON CONFLICT (provider, provider_transaction_id)
+           WHERE provider_transaction_id IS NOT NULL
            DO UPDATE SET status = EXCLUDED.status, paid_at = EXCLUDED.paid_at, updated_at = now()`,
         [
           input.reservationId,

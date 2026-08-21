@@ -21,9 +21,21 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+/**
+ * DDL pede modo sessao. O pooler do Supabase serve modo transacao na 6543 e
+ * modo sessao na 5432 -- se a URL vier apontada para a 6543, migramos pela
+ * 5432 do mesmo host em vez de arriscar comportamento estranho de pgbouncer.
+ */
+function sessionModeUrl(url) {
+  if (!url.includes('.pooler.supabase.com:6543')) return url;
+  console.log('Pooler em modo transacao detectado; migrando pela porta 5432 (modo sessao).');
+  return url.replace('.pooler.supabase.com:6543', '.pooler.supabase.com:5432');
+}
+
 const client = new pg.Client({
-  connectionString: databaseUrl,
-  ssl: (process.env.DATABASE_SSL ?? 'true') === 'true' ? { rejectUnauthorized: false } : false
+  connectionString: sessionModeUrl(databaseUrl),
+  ssl: (process.env.DATABASE_SSL ?? 'true') === 'true' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 20_000
 });
 
 await client.connect();
