@@ -12,9 +12,12 @@ export default function LoginPage() {
     const data = new FormData(event.currentTarget);
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: data.get('email'), password: data.get('password') })
+      body: JSON.stringify({ identifier: data.get('identifier'), password: data.get('password') })
     });
-    if (response.ok) window.location.href = '/conta';
+    if (response.ok) {
+      const result = await response.json();
+      window.location.href = result.user.role === 'ADMIN' ? '/admin' : '/conta';
+    }
     else setMessage('E-mail ou senha inválidos.');
   }
 
@@ -23,9 +26,10 @@ export default function LoginPage() {
     <p className="eyebrow">Área do hóspede</p>
     <h1>Entre para continuar.</h1>
     <form className="panel login-panel" onSubmit={submit}>
-      <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
+      <label>E-mail ou usuário<input name="identifier" autoComplete="username" required /></label>
       <label>Senha<input name="password" type="password" autoComplete="current-password" required /></label>
       <button className="button" type="submit">Entrar</button>
+      <p className="form-helper">Ainda não tem uma conta? <a href="/cadastro">Cadastre-se</a></p>
       {message && <p className="feedback">{message}</p>}
     </form>
   </main>;

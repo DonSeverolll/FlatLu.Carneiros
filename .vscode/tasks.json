@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Carneiros Flat: iniciar web",
+      "type": "shell",
+      "command": "npm.cmd run dev:web",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Carneiros Flat: iniciar API",
+      "type": "shell",
+      "command": "npm.cmd run dev:api",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Carneiros Flat: build",
+      "type": "shell",
+      "command": "npm.cmd run build",
+      "problemMatcher": []
+    }
+  ]
+}

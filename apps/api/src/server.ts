@@ -393,12 +393,20 @@ app.post('/auth/register', async (request, reply) => {
     fullName: z.string().trim().min(3).max(160)
   }).parse(request.body);
 
-  const result = await pool.query(
-    `INSERT INTO users (email, password_hash, full_name)
-     VALUES ($1, $2, $3)
-     RETURNING id, email, full_name, role`,
-    [input.email, await hashPassword(input.password), input.fullName]
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `INSERT INTO users (email, password_hash, full_name)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, full_name, role`,
+      [input.email, await hashPassword(input.password), input.fullName]
+    );
+  } catch (error: unknown) {
+    if ((error as { constraint?: string }).constraint === 'users_email_unique') {
+      return reply.code(409).send({ error: 'EMAIL_ALREADY_REGISTERED' });
+    }
+    throw error;
+  }
   const user = result.rows[0];
   const token = await createSession(user.id, user.role);
   reply.setCookie('session', token, {
@@ -412,11 +420,18 @@ app.post('/auth/register', async (request, reply) => {
 });
 
 app.post('/auth/login', async (request, reply) => {
-  const input = z.object({ email: z.string().email(), password: z.string() }).parse(request.body);
+  const input = z.object({
+    identifier: z.string().trim().min(3).max(320).optional(),
+    email: z.string().email().optional(),
+    password: z.string()
+  }).refine((value) => value.identifier || value.email, 'identifier is required').parse(request.body);
+  const identifier = (input.identifier ?? input.email ?? '').toLowerCase();
   const result = await pool.query(
-    `SELECT id, email, full_name, role, password_hash
-     FROM users WHERE email = $1 AND status = 'ACTIVE' AND deleted_at IS NULL`,
-    [input.email.toLowerCase()]
+    `SELECT id, email, username, full_name, role, password_hash
+     FROM users
+     WHERE (email = $1 OR lower(username) = $1)
+       AND status = 'ACTIVE' AND deleted_at IS NULL`,
+    [identifier]
   );
   const user = result.rows[0];
   if (!user || !(await verifyPassword(user.password_hash, input.password))) {
@@ -425,7 +440,7 @@ app.post('/auth/login', async (request, reply) => {
   await pool.query('UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = $1', [user.id]);
   const token = await createSession(user.id, user.role);
   reply.setCookie('session', token, { httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 15 });
-  return { user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role } };
+  return { user: { id: user.id, email: user.email, username: user.username, fullName: user.full_name, role: user.role } };
 });
 
 app.post('/auth/logout', async (_request, reply) => {

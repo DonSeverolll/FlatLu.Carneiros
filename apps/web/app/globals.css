@@ -32,8 +32,17 @@ input:disabled { opacity: .55; }
 .booking { border-top: 1px solid rgba(23,63,69,.18); display: grid; gap: 7px; padding: 18px 0; }
 .booking span { color: var(--muted); font-size: 13px; }
 .feedback { color: var(--coral); }
+.form-helper { color: var(--muted); font-size: 14px; }
+.form-helper a { border-bottom: 1px solid currentColor; color: var(--ink); }
 .login-page { max-width: 760px; }
 .login-panel { max-width: 520px; }
+.admin-heading { align-items: center; display: flex; justify-content: space-between; }
+.admin-heading h2 { margin-bottom: 0; }
+.button-small { margin-top: 0; padding: 10px 14px; }
+.admin-booking { align-items: center; grid-template-columns: 1fr auto auto; }
+.admin-booking > div { display: grid; gap: 7px; }
+.text-button { background: transparent; border: 0; color: var(--coral); cursor: pointer; font: inherit; padding: 8px; }
+.admin-list { margin-top: 18px; }
 .booking-section { padding: 9vw 6vw; }
 .booking-widget { margin: 0 auto; max-width: 1100px; }
 .calendar-head { align-items: flex-end; display: flex; justify-content: space-between; }
@@ -53,3 +62,4 @@ input:disabled { opacity: .55; }
 .terms input { accent-color: var(--coral); }
 @media (max-width: 760px) { .nav { padding: 22px 6vw; } .nav a { display: none; } .hero { display: flex; flex-direction: column; padding-top: 8vw; } .hero-image { min-height: 360px; order: -1; } .details { display: block; padding: 16vw 8vw; } }
 @media (max-width: 760px) { .account-grid { display: block; } .panel { margin-bottom: 18px; } .date-grid { grid-template-columns: repeat(5, 1fr); } .checkout-row, .checkout-row > div:first-child { align-items: stretch; display: flex; flex-direction: column; gap: 14px; } .quote { text-align: left; } }
+@media (max-width: 760px) { .admin-booking { align-items: stretch; display: grid; grid-template-columns: 1fr; } .admin-heading { align-items: flex-start; } }
