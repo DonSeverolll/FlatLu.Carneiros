@@ -6,3 +6,6 @@ target/
 .env.*
 !.env.example
 npm-debug.log*
+.vercel
+coverage/
+*.tsbuildinfo

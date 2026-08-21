@@ -1,80 +1,245 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api, messageFor } from '@/lib/api';
+import { brl, longDate } from '@/lib/format';
+import type { AvailabilityDto, PublicPropertyDto, ReservationDto } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const SLUG = 'flat-praia-de-carneiros';
+type Props = {
+  property: PublicPropertyDto;
+  initialUnavailable: string[];
+  startDate: string;
+};
 
-type Property = { id: string; name: string; nightly_rate: string; deposit_percentage: string; terms_version: string; terms_content: string };
-type Block = { starts_at: string; ends_at: string };
-
-function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+function addDays(iso: string, amount: number): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + amount)).toISOString().slice(0, 10);
 }
 
-function addDays(date: Date, amount: number) {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + amount);
-  return next;
+function nightsBetween(checkIn: string, checkOut: string): number {
+  const toUtc = (iso: string) => {
+    const [year, month, day] = iso.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((toUtc(checkOut) - toUtc(checkIn)) / 86_400_000);
 }
 
-export default function BookingWidget() {
-  const [property, setProperty] = useState<Property | null>(null);
-  const [blocked, setBlocked] = useState<Set<string>>(new Set());
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+export default function BookingWidget({ property, initialUnavailable, startDate }: Props) {
+  const router = useRouter();
+  const [unavailable, setUnavailable] = useState(() => new Set(initialUnavailable));
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
+  const [guests, setGuests] = useState(2);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [status, setStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const dates = useMemo(() => Array.from({ length: 120 }, (_, index) => addDays(new Date(), index)), []);
+  const days = useMemo(() => {
+    const horizon = Math.min(property.bookingHorizonDays, 180);
+    return Array.from({ length: horizon }, (_, index) => addDays(startDate, index));
+  }, [startDate, property.bookingHorizonDays]);
 
-  useEffect(() => {
-    async function loadAvailability() {
-      try {
-        const propertyResponse = await fetch(`${API_URL}/properties/${SLUG}`);
-        if (!propertyResponse.ok) return setStatus('Banco de dados indisponível. Tente novamente em instantes.');
-        const propertyData = await propertyResponse.json();
-        setProperty(propertyData.property);
-        const from = dateKey(dates[0]);
-        const to = dateKey(addDays(dates[dates.length - 1], 1));
-        const availabilityResponse = await fetch(`${API_URL}/properties/${propertyData.property.id}/availability?from=${from}&to=${to}`);
-        if (!availabilityResponse.ok) return setStatus('Não foi possível consultar as datas.');
-        const availability = await availabilityResponse.json();
-        const unavailable = new Set<string>();
-        for (const block of availability.blocked as Block[]) {
-          const start = new Date(block.starts_at);
-          const end = new Date(block.ends_at);
-          for (let day = new Date(start); day < end; day = addDays(day, 1)) unavailable.add(dateKey(day));
-        }
-        setBlocked(unavailable);
-      } catch {
-        setStatus('API indisponível. Inicie o servidor para consultar reservas.');
-      }
+  const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
+
+  /**
+   * Preço só aparece quando o anfitrião publicou a diária. Enquanto
+   * `nightly_rate` for zero, a vitrine diz "sob consulta" em vez de anunciar
+   * R$ 0,00 — e a API recusa a reserva pelo mesmo motivo.
+   */
+  const totalCents = property.ratePublished
+    ? Math.round(Number(property.nightlyRate) * 100) * nights
+    : 0;
+  const depositCents = Math.round((totalCents * Number(property.depositPercentage)) / 100);
+
+  /** Toda noite do intervalo precisa estar livre, não só as pontas. */
+  function rangeIsFree(from: string, to: string): boolean {
+    for (let day = from; day < to; day = addDays(day, 1)) {
+      if (unavailable.has(day)) return false;
     }
-    void loadAvailability();
-  }, [dates]);
-
-  const nights = checkIn && checkOut ? Math.max(0, Math.round((new Date(`${checkOut}T00:00:00Z`).getTime() - new Date(`${checkIn}T00:00:00Z`).getTime()) / 86_400_000)) : 0;
-  const total = property ? Number(property.nightly_rate) * nights : 0;
-  const deposit = property ? total * Number(property.deposit_percentage) / 100 : 0;
-
-  async function reserve() {
-    if (!property || !checkIn || !checkOut || !termsAccepted || !nights) return setStatus('Selecione datas válidas e aceite os termos.');
-    setStatus('Confirmando disponibilidade...');
-    const response = await fetch(`${API_URL}/reservations`, {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ propertyId: property.id, checkIn, checkOut, guestCount: 1, termsAccepted: true, idempotencyKey: crypto.randomUUID() })
-    });
-    if (response.status === 401) return setStatus('Faça login ou crie sua conta antes de reservar.');
-    if (response.status === 409) return setStatus('Estas datas acabaram de ser ocupadas. Consulte novamente.');
-    setStatus(response.ok ? 'Reserva criada e aguardando pagamento do sinal.' : 'Não foi possível criar a reserva.');
+    return true;
   }
 
-  return <div className="booking-widget">
-    <div className="calendar-head"><div><p className="eyebrow">Disponibilidade</p><h2>Escolha seus dias.</h2></div><span>Próximos 120 dias</span></div>
-    <div className="date-grid">{dates.map((date) => { const key = dateKey(date); const unavailable = blocked.has(key); const selected = key === checkIn || key === checkOut; return <button className={selected ? 'date selected' : 'date'} disabled={unavailable} key={key} onClick={() => { if (!checkIn || (checkIn && checkOut)) { setCheckIn(key); setCheckOut(''); } else if (key > checkIn) setCheckOut(key); }}><small>{date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' })}</small><strong>{date.getUTCDate()}</strong></button>; })}</div>
-    <div className="checkout-row"><div><label>Entrada<input type="date" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label><label>Saída<input type="date" value={checkOut} min={checkIn} onChange={(event) => setCheckOut(event.target.value)} /></label></div><div className="quote"><span>{nights} noite(s)</span><strong>R$ {total.toFixed(2)}</strong><small>Sinal de 50%: R$ {deposit.toFixed(2)}</small></div></div>
-    <label className="terms"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> Aceito os Termos de Locação e Contrato.</label>
-    <button className="button" type="button" onClick={() => void reserve()}>Solicitar reserva</button>{status && <p className="feedback">{status}</p>}
-  </div>;
+  function selectDay(day: string) {
+    setStatus('');
+    if (!checkIn || checkOut || day <= checkIn) {
+      setCheckIn(day);
+      setCheckOut('');
+      return;
+    }
+    if (!rangeIsFree(checkIn, day)) {
+      setStatus('Há noites ocupadas nesse intervalo. Escolha outro período.');
+      return;
+    }
+    const selectedNights = nightsBetween(checkIn, day);
+    if (selectedNights < property.minNights) {
+      setStatus(`A estadia mínima é de ${property.minNights} noites.`);
+      return;
+    }
+    setCheckOut(day);
+  }
+
+  async function refreshAvailability() {
+    try {
+      const data = await api<AvailabilityDto>(`/api/properties/${property.slug}/availability`);
+      setUnavailable(new Set(data.unavailable));
+    } catch {
+      /* mantém o calendário atual: recarregar a página resolve */
+    }
+  }
+
+  async function reserve() {
+    if (!checkIn || !checkOut || nights <= 0) {
+      setStatus('Escolha a data de entrada e a de saída.');
+      return;
+    }
+    if (!termsAccepted) {
+      setStatus('É necessário aceitar os Termos de Locação.');
+      return;
+    }
+    setSubmitting(true);
+    setStatus('Confirmando disponibilidade...');
+    try {
+      const { reservation } = await api<{ reservation: ReservationDto }>('/api/reservations', {
+        method: 'POST',
+        body: {
+          propertyId: property.slug,
+          checkIn,
+          checkOut,
+          guestCount: guests,
+          termsAccepted: true,
+          idempotencyKey: crypto.randomUUID()
+        }
+      });
+      router.push(`/reserva/${reservation.id}`);
+    } catch (error) {
+      setStatus(messageFor(error));
+      // 409 significa que outra pessoa fechou essas datas agora: recarrega.
+      await refreshAvailability();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="booking-widget">
+      <div className="calendar-head">
+        <div>
+          <p className="eyebrow">Disponibilidade</p>
+          <h2>Escolha seus dias.</h2>
+        </div>
+        <span>Próximos {days.length} dias</span>
+      </div>
+
+      <div className="date-grid">
+        {days.map((day) => {
+          const blocked = unavailable.has(day);
+          const isEdge = day === checkIn || day === checkOut;
+          const inRange = Boolean(checkIn && checkOut && day > checkIn && day < checkOut);
+          const [, , dayNumber] = day.split('-');
+          const weekday = WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()];
+          return (
+            <button
+              className={`date${isEdge ? ' selected' : ''}${inRange ? ' in-range' : ''}`}
+              disabled={blocked}
+              key={day}
+              onClick={() => selectDay(day)}
+              type="button"
+              aria-label={`${longDate(day)}${blocked ? ' — indisponível' : ''}`}
+            >
+              <small>{weekday}</small>
+              <strong>{Number(dayNumber)}</strong>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="checkout-row">
+        <div className="fields">
+          <label>
+            Entrada
+            <input
+              type="date"
+              value={checkIn}
+              min={startDate}
+              onChange={(event) => {
+                setCheckIn(event.target.value);
+                setCheckOut('');
+              }}
+            />
+          </label>
+          <label>
+            Saída
+            <input
+              type="date"
+              value={checkOut}
+              min={checkIn ? addDays(checkIn, property.minNights) : startDate}
+              onChange={(event) => setCheckOut(event.target.value)}
+            />
+          </label>
+          <label>
+            Hóspedes
+            <input
+              type="number"
+              min={1}
+              max={property.maxGuests}
+              value={guests}
+              onChange={(event) =>
+                setGuests(Math.min(property.maxGuests, Math.max(1, Number(event.target.value))))
+              }
+            />
+          </label>
+        </div>
+
+        <div className="quote">
+          {property.ratePublished ? (
+            <>
+              <span>
+                {nights} {nights === 1 ? 'noite' : 'noites'}
+                {nights > 0 && ` × ${brl(property.nightlyRate)}`}
+              </span>
+              <strong>{brl(totalCents / 100)}</strong>
+              <small>
+                Sinal de {Number(property.depositPercentage).toFixed(0)}%:{' '}
+                {brl(depositCents / 100)}
+              </small>
+            </>
+          ) : (
+            <>
+              <span>{nights > 0 ? `${nights} noite(s)` : 'Selecione as datas'}</span>
+              <strong>Tarifa sob consulta</strong>
+              <small>Envie um pedido e o anfitrião confirma o valor.</small>
+            </>
+          )}
+        </div>
+      </div>
+
+      <label className="terms">
+        <input
+          type="checkbox"
+          checked={termsAccepted}
+          onChange={(event) => setTermsAccepted(event.target.checked)}
+        />
+        <span>
+          Aceito os{' '}
+          <button className="link" type="button" onClick={() => setShowTerms((value) => !value)}>
+            Termos de Locação ({property.termsVersion})
+          </button>
+          .
+        </span>
+      </label>
+      {showTerms && <pre className="terms-content">{property.termsContent}</pre>}
+
+      <button className="button" type="button" onClick={() => void reserve()} disabled={submitting}>
+        {submitting ? 'Enviando...' : 'Solicitar reserva'}
+      </button>
+      <p className="hint">
+        A data fica reservada por {property.holdMinutes} minutos até o pagamento do sinal.
+      </p>
+      {status && <p className="feedback">{status}</p>}
+    </div>
+  );
 }

@@ -1,11 +1,19 @@
 {
   "name": "carneiros-flat-booking",
   "private": true,
-  "workspaces": ["apps/api", "apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
-    "dev:api": "npm --workspace apps/api run dev",
-    "dev:web": "npm --workspace apps/web run dev",
-    "start:web": "npm --workspace apps/web run start",
-    "build": "npm run build --workspaces"
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "start": "npm --workspace apps/web run start",
+    "typecheck": "npm --workspace apps/web run typecheck",
+    "test": "npm --workspace apps/web run test",
+    "db:migrate": "node scripts/migrate.mjs"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "sharp@0.34.5": true
   }
 }

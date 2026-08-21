@@ -9,7 +9,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./apps/api/migrations:/docker-entrypoint-initdb.d:ro
+      # Os arquivos rodam em ordem alfabética na primeira subida do volume.
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
 
 volumes:
   postgres_data:

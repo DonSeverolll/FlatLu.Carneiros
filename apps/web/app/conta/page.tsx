@@ -1,67 +1,157 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-
-type User = { email: string; full_name: string; phone: string | null; document_number: string | null };
-type Reservation = { id: string; check_in: string; check_out: string; status: string; payment_status: string; total_amount: string };
+import { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { api, messageFor } from '@/lib/api';
+import { PAYMENT_LABEL, STATUS_LABEL, brl, shortDate } from '@/lib/format';
+import type { ReservationDto, UserDto } from '@/lib/types';
 
 export default function AccountPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [message, setMessage] = useState('Carregando sua conta...');
+  const router = useRouter();
+  const [user, setUser] = useState<UserDto | null>(null);
+  const [reservations, setReservations] = useState<ReservationDto[]>([]);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadAccount() {
-      const [profileResponse, reservationsResponse] = await Promise.all([
-        fetch(`${API_URL}/auth/me`, { credentials: 'include' }),
-        fetch(`${API_URL}/reservations/mine`, { credentials: 'include' })
+  const load = useCallback(async () => {
+    try {
+      const [profile, bookings] = await Promise.all([
+        api<{ user: UserDto }>('/api/auth/me'),
+        api<{ reservations: ReservationDto[] }>('/api/reservations/mine')
       ]);
-      if (!profileResponse.ok || !reservationsResponse.ok) {
-        setMessage('Faça login para acessar sua conta.');
-        return;
-      }
-      const profile = await profileResponse.json();
-      const bookings = await reservationsResponse.json();
       setUser(profile.user);
       setReservations(bookings.reservations);
-      setMessage('');
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-    void loadAccount();
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function updateProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const response = await fetch(`${API_URL}/users/me`, {
-      method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName: form.get('fullName'), phone: form.get('phone'), documentNumber: form.get('documentNumber') })
-    });
-    if (response.ok) {
-      const result = await response.json();
+    setMessage('');
+    try {
+      const result = await api<{ user: UserDto }>('/api/users/me', {
+        method: 'PATCH',
+        body: {
+          fullName: form.get('fullName'),
+          phone: form.get('phone') || null,
+          documentNumber: form.get('documentNumber') || null
+        }
+      });
       setUser(result.user);
       setMessage('Perfil atualizado.');
-    } else setMessage('Não foi possível atualizar o perfil.');
+    } catch (error) {
+      setMessage(messageFor(error));
+    }
   }
 
-  if (!user) return <main className="account"><p>{message}</p><a className="button" href="/">Voltar para a vitrine</a></main>;
+  async function logout() {
+    try {
+      await api('/api/auth/logout', { method: 'POST' });
+    } finally {
+      router.push('/');
+    }
+  }
 
-  return <main className="account">
-    <a className="back-link" href="/">← Voltar</a>
-    <p className="eyebrow">Área do hóspede</p>
-    <h1>Olá, {user.full_name.split(' ')[0]}.</h1>
-    <div className="account-grid">
-      <form className="panel" onSubmit={updateProfile}>
-        <h2>Seu perfil</h2>
-        <label>Nome completo<input name="fullName" defaultValue={user.full_name} required minLength={3} /></label>
-        <label>E-mail<input value={user.email} disabled /></label>
-        <label>Telefone<input name="phone" defaultValue={user.phone ?? ''} /></label>
-        <label>Documento<input name="documentNumber" defaultValue={user.document_number ?? ''} /></label>
-        <button className="button" type="submit">Salvar perfil</button>
-      </form>
-      <section className="panel"><h2>Suas reservas</h2>{reservations.length ? reservations.map((reservation) => <article className="booking" key={reservation.id}><strong>{reservation.check_in} → {reservation.check_out}</strong><span>{reservation.status} · pagamento {reservation.payment_status}</span><b>R$ {Number(reservation.total_amount).toFixed(2)}</b></article>) : <p>Nenhuma reserva encontrada.</p>}</section>
-    </div>
-    {message && <p className="feedback">{message}</p>}
-  </main>;
+  if (loading) {
+    return (
+      <main className="account">
+        <p>Carregando sua conta...</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="account">
+        <p>Entre para acessar sua conta.</p>
+        <div className="row-actions">
+          <Link className="button" href="/login">
+            Entrar
+          </Link>
+          <Link className="link" href="/cadastro">
+            Criar conta
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="account">
+      <Link className="back-link" href="/">
+        ← Voltar
+      </Link>
+      <p className="eyebrow">Área do hóspede</p>
+      <h1>Olá, {user.full_name.split(' ')[0]}.</h1>
+
+      <div className="account-grid">
+        <form className="panel" onSubmit={updateProfile}>
+          <h2>Seu perfil</h2>
+          <label>
+            Nome completo
+            <input name="fullName" defaultValue={user.full_name} required minLength={3} />
+          </label>
+          <label>
+            E-mail
+            <input value={user.email} disabled />
+          </label>
+          <label>
+            Telefone
+            <input name="phone" defaultValue={user.phone ?? ''} maxLength={32} />
+          </label>
+          <label>
+            Documento
+            <input name="documentNumber" defaultValue={user.document_number ?? ''} maxLength={32} />
+          </label>
+          <button className="button" type="submit">
+            Salvar perfil
+          </button>
+          <button className="link" type="button" onClick={() => void logout()}>
+            Sair da conta
+          </button>
+        </form>
+
+        <section className="panel">
+          <h2>Suas reservas</h2>
+          {reservations.length ? (
+            reservations.map((reservation) => {
+              const payable =
+                reservation.status === 'PENDING_PAYMENT' && reservation.payment_status !== 'PAID';
+              return (
+                <article className="booking" key={reservation.id}>
+                  <strong>
+                    {shortDate(reservation.check_in)} → {shortDate(reservation.check_out)}
+                  </strong>
+                  <span>
+                    {STATUS_LABEL[reservation.status] ?? reservation.status} ·{' '}
+                    {PAYMENT_LABEL[reservation.payment_status] ?? reservation.payment_status}
+                  </span>
+                  <b>{brl(reservation.total_amount)}</b>
+                  {payable && (
+                    <Link className="button small" href={`/reserva/${reservation.id}`}>
+                      Pagar sinal
+                    </Link>
+                  )}
+                </article>
+              );
+            })
+          ) : (
+            <p>
+              Nenhuma reserva ainda. <Link href="/#reserva">Consultar datas</Link>
+            </p>
+          )}
+        </section>
+      </div>
+      {message && <p className="feedback">{message}</p>}
+    </main>
+  );
 }
