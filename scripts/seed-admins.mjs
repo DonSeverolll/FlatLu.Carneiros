@@ -22,11 +22,26 @@ function required(name) {
   return value;
 }
 
-const admins = [1, 2].map((number) => ({
-  username: required(`ADMIN_${number}_USERNAME`),
-  email: required(`ADMIN_${number}_EMAIL`).trim().toLowerCase(),
-  password: required(`ADMIN_${number}_PASSWORD`)
-}));
+/**
+ * Provisiona quantos slots estiverem definidos (ADMIN_1_*, ADMIN_2_*, ...).
+ * Exigir exatamente dois travava quem ainda so tem o proprio acesso.
+ */
+const admins = [];
+for (let number = 1; number <= 10; number += 1) {
+  const username = process.env[`ADMIN_${number}_USERNAME`];
+  const email = process.env[`ADMIN_${number}_EMAIL`];
+  const password = process.env[`ADMIN_${number}_PASSWORD`];
+  if (!username && !email && !password) continue;
+  admins.push({
+    username: required(`ADMIN_${number}_USERNAME`),
+    email: required(`ADMIN_${number}_EMAIL`).trim().toLowerCase(),
+    password: required(`ADMIN_${number}_PASSWORD`)
+  });
+}
+if (!admins.length) {
+  console.error('Nenhum ADMIN_n_USERNAME/EMAIL/PASSWORD definido.');
+  process.exit(1);
+}
 
 for (const admin of admins) {
   if (admin.password.length < MIN_PASSWORD) {
