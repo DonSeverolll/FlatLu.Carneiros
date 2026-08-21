@@ -40,7 +40,7 @@ JWT_SECRET=<48 caracteres aleatórios>
 ```
 
 ```bash
-DATABASE_URL="postgresql://app:app@localhost:5432/carneiros_flat" DATABASE_SSL=false npm run db:migrate
+npm run db:migrate
 npm run dev
 ```
 
@@ -56,9 +56,10 @@ O projeto é um só. Não há serviço de API separado para hospedar.
    (Supabase: porta `6543`) — serverless abre e fecha conexões o tempo todo e a
    porta direta esgota o limite.
 
-2. **Migrações.**
+2. **Migrações.** Preencha `DATABASE_URL` em `apps/web/.env.local` (ignorado
+   pelo git) e rode — os scripts de banco leem esse arquivo sozinhos:
    ```bash
-   DATABASE_URL="postgresql://..." npm run db:migrate
+   npm run db:migrate
    ```
 
 3. **Projeto no Vercel.** Importe o repositório e defina
@@ -93,8 +94,8 @@ Preço errado nunca vai ao ar.
    DATABASE_URL="postgresql://..." node scripts/promote-admin.mjs voce@email.com
    ```
 
-2. Publique diária, sinal e chave Pix (`PATCH /api/admin/properties/:id`,
-   autenticado como ADMIN):
+2. Entre em `/login` e publique diária, sinal e chave Pix pelo painel
+   `/admin`. Pela API, se preferir (`PATCH /api/admin/properties/:id`):
    ```bash
    curl -X PATCH "https://SEU-DOMINIO/api/admin/properties/$PROPERTY_ID" \
      -H 'Content-Type: application/json' \
@@ -121,8 +122,11 @@ virar administrador.
 
 Preencha no ambiente (nunca no código) e rode:
 
+Coloque os valores em `apps/web/.env.local` (há um bloco pronto em
+`.env.example`) e rode:
+
 ```bash
-ADMIN_1_USERNAME=LuciaArcoverdeFlt ADMIN_1_EMAIL=... ADMIN_1_PASSWORD=... ADMIN_2_USERNAME=VictorFerrFlt     ADMIN_2_EMAIL=... ADMIN_2_PASSWORD=... DATABASE_URL="postgresql://..." npm run seed:admins
+npm run seed:admins
 ```
 
 O script é idempotente: rodar de novo atualiza a senha em vez de duplicar.
@@ -131,7 +135,7 @@ Senhas ficam apenas como hash Argon2id, e o mínimo é 12 caracteres.
 Para promover uma conta já existente:
 
 ```bash
-DATABASE_URL="postgresql://..." node scripts/promote-admin.mjs voce@email.com
+npm run promote:admin voce@email.com
 ```
 
 ## O que foi corrigido
