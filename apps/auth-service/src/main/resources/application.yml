@@ -1,0 +1,16 @@
+server:
+  port: 4100
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/carneiros_flat}
+    username: ${DATABASE_USER:app}
+    password: ${DATABASE_PASSWORD:app}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -1,0 +1,11 @@
+{
+  "name": "carneiros-flat-booking",
+  "private": true,
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev:web": "npm --workspace apps/web run dev",
+    "start:web": "npm --workspace apps/web run start",
+    "build": "npm run build --workspaces"
+  }
+}
