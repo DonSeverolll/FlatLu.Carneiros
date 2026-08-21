@@ -121,6 +121,27 @@ dentro da transação de criação de reserva. É isso que garante correção se
 processo residente — o cron diário é só limpeza (sessões vencidas, tentativas
 antigas, cobranças órfãs).
 
+## Merge com o commit `Flat Up; 1.0`
+
+Enquanto a reestruturação acontecia, um commit chegou ao remoto com login por
+usuário, painel `/admin` e provisionamento de dois administradores. Nada foi
+descartado — tudo foi portado para a nova arquitetura:
+
+- **Login por identidade.** `identifier` aceita e-mail (hóspedes) ou usuário
+  (administradores); `email` continua aceito para não quebrar cliente antigo. O
+  throttle passou a ser por identidade, não por e-mail.
+- **Painel `/admin`.** Reescrito sobre o cliente de mesma origem e ampliado com
+  o que passou a existir: confirmar sinal ou pagamento integral, cancelar com
+  motivo e reembolso opcional, publicar diária/sinal/chave Pix e bloquear
+  períodos. Um aviso no topo diz o que falta configurar.
+- **`scripts/seed-admins.mjs`.** Portado de `tsx` para Node puro com
+  `@node-rs/argon2`, com validação do formato de usuário antes de bater na
+  constraint e revogação das sessões abertas quando a senha muda.
+- **Migração renumerada.** `002_admin_usernames.sql` (deles) ficou como 002; o
+  endurecimento virou `003_hardening.sql`. Havia colisão de número.
+- **`.vscode/tasks.json`** atualizado: as tarefas `dev:api`/`dev:web` deixaram
+  de existir com a consolidação.
+
 ## Verificação
 
 Rodados nesta máquina:

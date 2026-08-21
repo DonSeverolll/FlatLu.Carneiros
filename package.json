@@ -10,10 +10,15 @@
     "start": "npm --workspace apps/web run start",
     "typecheck": "npm --workspace apps/web run typecheck",
     "test": "npm --workspace apps/web run test",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "seed:admins": "node scripts/seed-admins.mjs"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,
     "sharp@0.34.5": true
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "pg": "^8.13.1"
   }
 }

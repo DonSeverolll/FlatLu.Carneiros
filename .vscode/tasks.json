@@ -1,0 +1,40 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Carneiros Flat: iniciar",
+      "type": "shell",
+      "command": "npm.cmd run dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Carneiros Flat: build",
+      "type": "shell",
+      "command": "npm.cmd run build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Carneiros Flat: testes",
+      "type": "shell",
+      "command": "npm.cmd run test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Carneiros Flat: typecheck",
+      "type": "shell",
+      "command": "npm.cmd run typecheck",
+      "problemMatcher": []
+    },
+    {
+      "label": "Carneiros Flat: migrar banco",
+      "type": "shell",
+      "command": "npm.cmd run db:migrate",
+      "problemMatcher": []
+    }
+  ]
+}

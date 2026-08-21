@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     const context = requestContext(request);
     const input = await parseBody(request, loginSchema);
 
-    // Dois limites: por e-mail (protege a conta) e por IP (protege a base).
-    await assertWithinLimit('login:email', input.email, LOGIN_POLICY);
+    // Dois limites: por identidade (protege a conta) e por IP (protege a base).
+    await assertWithinLimit('login:identity', input.identifier, LOGIN_POLICY);
     await assertWithinLimit('login:ip', context.ip ?? 'unknown', {
       maxAttempts: 30,
       windowSeconds: 900
@@ -23,11 +23,11 @@ export async function POST(request: Request) {
     try {
       const user = await authenticate(input);
       await startSession(user.id, user.role, context);
-      await recordAttempt('login:email', input.email, true);
+      await recordAttempt('login:identity', input.identifier, true);
       await recordAttempt('login:ip', context.ip ?? 'unknown', true);
       return json({ user });
     } catch (error) {
-      await recordAttempt('login:email', input.email, false);
+      await recordAttempt('login:identity', input.identifier, false);
       await recordAttempt('login:ip', context.ip ?? 'unknown', false);
       throw error;
     }

@@ -17,11 +17,12 @@ export default function LoginPage() {
     setSubmitting(true);
     setMessage('');
     try {
-      await api<{ user: UserDto }>('/api/auth/login', {
+      // `identifier` aceita e-mail (hóspedes) ou usuário (administradores).
+      const { user } = await api<{ user: UserDto }>('/api/auth/login', {
         method: 'POST',
-        body: { email: data.get('email'), password: data.get('password') }
+        body: { identifier: data.get('identifier'), password: data.get('password') }
       });
-      router.push('/conta');
+      router.push(user.role === 'ADMIN' ? '/admin' : '/conta');
     } catch (error) {
       setMessage(messageFor(error));
     } finally {
@@ -38,8 +39,8 @@ export default function LoginPage() {
       <h1>Entre para continuar.</h1>
       <form className="panel login-panel" onSubmit={submit}>
         <label>
-          E-mail
-          <input name="email" type="email" autoComplete="email" required />
+          E-mail ou usuário
+          <input name="identifier" autoComplete="username" required minLength={3} maxLength={320} />
         </label>
         <label>
           Senha
@@ -48,9 +49,13 @@ export default function LoginPage() {
         <button className="button" type="submit" disabled={submitting}>
           {submitting ? 'Entrando...' : 'Entrar'}
         </button>
-        {message && <p className="feedback">{message}</p>}
-        <p className="hint">
-          Ainda não tem conta? <Link href="/cadastro">Criar conta</Link>
+        {message && (
+          <p className="feedback" role="status">
+            {message}
+          </p>
+        )}
+        <p className="form-helper">
+          Ainda não tem uma conta? <Link href="/cadastro">Cadastre-se</Link>
         </p>
       </form>
     </main>

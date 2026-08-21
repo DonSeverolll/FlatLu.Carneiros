@@ -10,10 +10,21 @@ export const registerSchema = z.object({
   phone: z.string().trim().max(32).optional()
 });
 
-export const loginSchema = z.object({
-  email: z.string().email().max(320).transform((value) => value.trim().toLowerCase()),
-  password: z.string().min(1).max(200)
-});
+/**
+ * O login aceita e-mail (hospedes) ou usuario (administradores). `email` segue
+ * aceito para nao quebrar cliente antigo.
+ */
+export const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(3).max(320).optional(),
+    email: z.string().trim().min(3).max(320).optional(),
+    password: z.string().min(1).max(200)
+  })
+  .refine((value) => Boolean(value.identifier ?? value.email), 'Informe e-mail ou usuario')
+  .transform((value) => ({
+    identifier: (value.identifier ?? value.email ?? '').toLowerCase(),
+    password: value.password
+  }));
 
 export const updateProfileSchema = z
   .object({
@@ -27,6 +38,7 @@ export const updateProfileSchema = z
 export type PublicUser = {
   id: string;
   email: string;
+  username: string | null;
   full_name: string;
   role: string;
   phone: string | null;
@@ -34,7 +46,7 @@ export type PublicUser = {
   avatar_url: string | null;
 };
 
-const USER_COLUMNS = 'id, email, full_name, role, phone, document_number, avatar_url';
+const USER_COLUMNS = 'id, email, username, full_name, role, phone, document_number, avatar_url';
 
 export async function registerUser(input: z.infer<typeof registerSchema>) {
   try {
@@ -56,8 +68,9 @@ export async function registerUser(input: z.infer<typeof registerSchema>) {
 export async function authenticate(input: z.infer<typeof loginSchema>) {
   const result = await query<PublicUser & { password_hash: string }>(
     `SELECT ${USER_COLUMNS}, password_hash FROM users
-     WHERE email = $1 AND status = 'ACTIVE' AND deleted_at IS NULL`,
-    [input.email]
+     WHERE (email = $1 OR lower(username) = $1)
+       AND status = 'ACTIVE' AND deleted_at IS NULL`,
+    [input.identifier]
   );
   const user = result.rows[0];
 

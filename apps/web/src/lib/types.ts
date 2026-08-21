@@ -57,6 +57,7 @@ export type PaymentIntentDto = {
 export type UserDto = {
   id: string;
   email: string;
+  username: string | null;
   full_name: string;
   role: string;
   phone: string | null;

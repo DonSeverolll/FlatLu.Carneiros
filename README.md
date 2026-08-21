@@ -106,3 +106,34 @@ Preço errado nunca vai ao ar.
    ```
 
 O `Origin` é obrigatório em toda rota que altera estado — é a defesa CSRF.
+
+## Cadastro e administradores
+
+O cadastro de hóspedes fica em `/cadastro` e usa o mesmo banco. O login aceita
+**e-mail ou usuário** (`identifier`): hóspedes entram pelo e-mail,
+administradores pelo usuário. Depois de entrar, ADMIN vai para `/admin` e
+hóspede para `/conta`.
+
+Cadastro público sempre cria `CUSTOMER` — não existe caminho pela web para
+virar administrador.
+
+### Provisionar os administradores
+
+Preencha no ambiente (nunca no código) e rode:
+
+```bash
+ADMIN_1_USERNAME=LuciaArcoverdeFlt ADMIN_1_EMAIL=... ADMIN_1_PASSWORD=... ADMIN_2_USERNAME=VictorFerrFlt     ADMIN_2_EMAIL=... ADMIN_2_PASSWORD=... DATABASE_URL="postgresql://..." npm run seed:admins
+```
+
+O script é idempotente: rodar de novo atualiza a senha em vez de duplicar.
+Senhas ficam apenas como hash Argon2id, e o mínimo é 12 caracteres.
+
+Para promover uma conta já existente:
+
+```bash
+DATABASE_URL="postgresql://..." node scripts/promote-admin.mjs voce@email.com
+```
+
+## O que foi corrigido
+
+Ver [CORRECOES.md](CORRECOES.md) — inclui o que **não** foi verificado.
