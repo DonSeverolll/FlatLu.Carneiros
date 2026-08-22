@@ -47,11 +47,6 @@ export const config = {
   /** Preenchido automaticamente pelo Vercel quando há cron configurado. */
   get cronSecret() {
     return required('CRON_SECRET', 16);
-  },
-
-  /** Slug da propriedade exibida na vitrine. */
-  get propertySlug() {
-    return process.env.PROPERTY_SLUG ?? 'flat-praia-de-carneiros';
   }
 };
 

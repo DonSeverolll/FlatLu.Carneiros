@@ -87,7 +87,6 @@ O projeto é um só. Não há serviço de API separado para hospedar.
    | `JWT_SECRET` | sim | mínimo 32 caracteres — `openssl rand -base64 48` |
    | `CRON_SECRET` | sim | segredo do cron diário de limpeza |
    | `PAYMENT_WEBHOOK_SECRET` | não | só ao integrar um provedor de pagamento |
-   | `PROPERTY_SLUG` | não | padrão `flat-praia-de-carneiros` |
 
    Cada segredo é validado apenas na rota que o usa. Faltando
    `PAYMENT_WEBHOOK_SECRET`, o webhook responde `503` — o resto do site
