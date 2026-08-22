@@ -44,6 +44,8 @@ export type PublicPropertyDto = {
   currency: string;
   timezone: string;
   checkInTime: string;
+  /** Fim da janela de chegada. */
+  checkInUntil: string;
   checkOutTime: string;
   nightlyRate: string;
   depositPercentage: string;

@@ -177,6 +177,9 @@ export default function PaymentPage({ params }: { params: Promise<{ reservationI
             Depois de pagar, a confirmação aparece aqui e na sua conta. Guarde o identificador{' '}
             <strong>{intent.payment.reference}</strong> — ele é a referência da conciliação.
           </p>
+          <p className="hint">
+            Entrada a partir das 09:00 até as 16:00. Saída impreterivelmente até as 16:00.
+          </p>
         </section>
       </div>
       {error && <p className="feedback">{error}</p>}

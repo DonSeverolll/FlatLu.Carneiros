@@ -51,8 +51,8 @@ export default async function HomePage() {
           <p className="eyebrow">Praia de Carneiros e São José da Coroa Grande</p>
           <h1>Seu intervalo entre o mar e o tempo.</h1>
           <p className="lead">
-            Três espaços independentes no litoral sul de Pernambuco: um flat à beira da Praia de
-            Carneiros e os dois andares da casa em São José, cada um com entrada própria.
+            Três espaços independentes no litoral sul de Pernambuco: o flat na Praia de Carneiros e
+            os dois andares da casa em São José da Coroa Grande, cada um com entrada própria.
           </p>
           <a className="button" href="#reserva">
             Ver disponibilidade
@@ -79,14 +79,19 @@ export default async function HomePage() {
                   <dt>
                     <i className="unit-dot" style={{ background: unit.color }} /> {unit.shortName}
                   </dt>
-                  <dd>
-                    até {unit.maxGuests} pessoas · check-in {unit.checkInTime.slice(0, 5)} ·
-                    check-out {unit.checkOutTime.slice(0, 5)}
-                  </dd>
+                  <dd>até {unit.maxGuests} pessoas</dd>
                 </div>
               ))}
             </dl>
           ) : null}
+
+          {calendar?.units[0] && (
+            <p className="hint schedule">
+              <strong>Check-in</strong> a partir das {calendar.units[0].checkInTime.slice(0, 5)} até
+              as {calendar.units[0].checkInUntil.slice(0, 5)}. <strong>Check-out</strong>
+              {' '}impreterivelmente até as {calendar.units[0].checkOutTime.slice(0, 5)}.
+            </p>
+          )}
 
           <div className="amenities">
             {[...locations].map(([name, entry]) => (

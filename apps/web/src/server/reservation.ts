@@ -109,23 +109,15 @@ export async function createReservation(
     const reservation = inserted.rows[0];
 
     try {
+      /**
+       * Ocupa as NOITES da estadia: [check-in, check-out). O dia do check-out
+       * não é uma noite e segue vendável, então a virada no mesmo dia funciona
+       * independentemente dos horários de chegada e saída.
+       */
       await client.query(
-        `INSERT INTO inventory_blocks (property_id, reservation_id, source, blocked_period)
-         VALUES ($1, $2, 'RESERVATION', tstzrange(
-           (($3::date + $5::time) AT TIME ZONE $7),
-           ((($4::date + $6::time) AT TIME ZONE $7) + ($8::int * interval '1 hour')),
-           '[)'
-         ))`,
-        [
-          property.id,
-          reservation.id,
-          input.checkIn,
-          input.checkOut,
-          property.check_in_time,
-          property.check_out_time,
-          property.timezone,
-          property.cleaning_gap_hours
-        ]
+        `INSERT INTO inventory_blocks (property_id, reservation_id, source, blocked_nights)
+         VALUES ($1, $2, 'RESERVATION', daterange($3::date, $4::date + $5::int, '[)'))`,
+        [property.id, reservation.id, input.checkIn, input.checkOut, property.cleaning_gap_days]
       );
     } catch (error) {
       if (violatedConstraint(error) === 'inventory_blocks_no_overlap') {

@@ -15,8 +15,8 @@ import { type PropertyRow, publicProperty } from './property';
 
 const UNIT_COLUMNS = `
   id, name, slug, short_name, color, location_name, location_url, display_order,
-  description, timezone, currency, check_in_time, check_out_time,
-  cleaning_gap_hours, deposit_percentage, nightly_rate, min_nights, max_guests,
+  description, timezone, currency, check_in_time, check_in_until, check_out_time,
+  cleaning_gap_hours, cleaning_gap_days, deposit_percentage, nightly_rate, min_nights, max_guests,
   booking_horizon_days, hold_minutes, terms_version, terms_content,
   pix_key, pix_holder_name, payment_instructions, hero_image_url, amenities`;
 
@@ -37,10 +37,8 @@ export async function listUnits(): Promise<UnitRow[]> {
 }
 
 /**
- * Uma noite está indisponível quando a janela real de ocupação
- * `[dia + check-in, dia+1 + check-out + faxina)` colide com um bloqueio ativo
- * daquela unidade. Uma única consulta cobre todas as unidades e todo o
- * intervalo.
+ * Uma noite está indisponível quando pertence a um bloqueio ativo da unidade.
+ * Uma única consulta cobre todas as unidades e todo o intervalo.
  */
 async function unavailableByUnit(from: string, to: string): Promise<Map<string, string[]>> {
   const result = await query<{ slug: string; day: string }>(
@@ -51,12 +49,7 @@ async function unavailableByUnit(from: string, to: string): Promise<Map<string, 
        AND EXISTS (
          SELECT 1 FROM inventory_blocks b
          WHERE b.property_id = p.id AND b.active = true
-           AND b.blocked_period && tstzrange(
-             ((d::date + p.check_in_time) AT TIME ZONE p.timezone),
-             (((d::date + 1) + p.check_out_time) AT TIME ZONE p.timezone)
-               + (p.cleaning_gap_hours * interval '1 hour'),
-             '[)'
-           )
+           AND b.blocked_nights @> d::date
        )
      ORDER BY p.display_order, d`,
     [from, to]

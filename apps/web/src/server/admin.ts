@@ -33,6 +33,8 @@ export const updatePropertySchema = z
     minNights: z.number().int().min(1).max(90).optional(),
     maxGuests: z.number().int().min(1).max(30).optional(),
     holdMinutes: z.number().int().min(5).max(1440).optional(),
+    /** Dias de folga entre hóspedes. 0 = virada no mesmo dia. */
+    cleaningGapDays: z.number().int().min(0).max(7).optional(),
     bookingHorizonDays: z.number().int().min(1).max(1095).optional(),
     description: z.string().trim().min(10).max(4000).optional(),
     termsVersion: z.string().trim().min(1).max(32).optional(),
@@ -113,15 +115,17 @@ export async function blockDates(
   input: z.infer<typeof maintenanceSchema>
 ) {
   try {
+    /**
+     * `endDate` é a data de LIBERAÇÃO, não a última noite bloqueada — mesma
+     * semântica de check-out. Bloquear de 10 a 12 tira as noites 10 e 11.
+     */
     const result = await query(
-      `INSERT INTO inventory_blocks (property_id, source, blocked_period)
-       SELECT p.id, $4::inventory_source, tstzrange(
-                (($2::date + p.check_in_time) AT TIME ZONE p.timezone),
-                (($3::date + p.check_out_time) AT TIME ZONE p.timezone),
-                '[)')
+      `INSERT INTO inventory_blocks (property_id, source, blocked_nights)
+       SELECT p.id, $4::inventory_source, daterange($2::date, $3::date, '[)')
        FROM properties p WHERE p.id = $1 AND p.active = true
        RETURNING id, property_id, source,
-                 lower(blocked_period) AS starts_at, upper(blocked_period) AS ends_at`,
+                 lower(blocked_nights)::text AS starts_on,
+                 (upper(blocked_nights) - 1)::text AS last_night`,
       [propertyId, input.startDate, input.endDate, input.source]
     );
     if (!result.rowCount) throw notFound('PROPERTY_NOT_FOUND');
@@ -150,6 +154,7 @@ const PROPERTY_FIELDS = [
   ['minNights', 'min_nights'],
   ['maxGuests', 'max_guests'],
   ['holdMinutes', 'hold_minutes'],
+  ['cleaningGapDays', 'cleaning_gap_days'],
   ['bookingHorizonDays', 'booking_horizon_days'],
   ['description', 'description'],
   ['termsVersion', 'terms_version'],

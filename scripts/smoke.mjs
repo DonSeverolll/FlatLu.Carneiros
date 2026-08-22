@@ -262,6 +262,18 @@ try {
   check('datas sobrepostas recusadas com 409', r.status === 409 && r.json?.error === 'DATES_UNAVAILABLE',
     `${r.status} ${r.json?.error}`);
 
+  /**
+   * Snapshot com APENAS a primeira reserva no calendário: é aqui que se mede
+   * se o estoque é por noite. Uma estadia de 3 noites deve consumir 3 noites —
+   * nem a véspera do check-in, nem o dia do check-out.
+   */
+  const antes = (await a.call('/api/properties/flat-praia-de-carneiros/availability')).json?.unavailable ?? [];
+  check('estadia de 3 noites consome exatamente 3 noites', antes.length === 3, `${antes.length}: ${antes.join(', ')}`);
+  check('o dia do check-out continua vendável', !antes.includes(checkOut),
+    `${checkOut} ${antes.includes(checkOut) ? 'BLOQUEADO' : 'livre'}`);
+  check('a véspera do check-in continua vendável', !antes.includes(addDays(checkIn, -1)),
+    `${addDays(checkIn, -1)} ${antes.includes(addDays(checkIn, -1)) ? 'BLOQUEADA' : 'livre'}`);
+
   r = await rv.call('/api/reservations', { method: 'POST', body: {
     propertyId: 'flat-praia-de-carneiros', checkIn: addDays(checkIn, 3), checkOut: addDays(checkIn, 5), guestCount: 2,
     termsAccepted: true, idempotencyKey: `e2e-adj-${stamp}`
@@ -273,6 +285,7 @@ try {
   const unavailable = r.json?.unavailable ?? [];
   check('calendário passa a marcar as noites vendidas', unavailable.includes(checkIn) && unavailable.includes(addDays(checkIn, 2)),
     `${unavailable.length} noites`);
+
   check('availability não expõe o motivo do bloqueio', !r.text.includes('RESERVATION') && !r.text.includes('source'));
 
   console.log('\n--- 8. cobrança Pix');

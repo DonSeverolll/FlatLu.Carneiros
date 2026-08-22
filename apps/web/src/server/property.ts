@@ -15,8 +15,10 @@ export type PropertyRow = {
   timezone: string;
   currency: string;
   check_in_time: string;
+  check_in_until: string;
   check_out_time: string;
   cleaning_gap_hours: number;
+  cleaning_gap_days: number;
   deposit_percentage: string;
   nightly_rate: string;
   min_nights: number;
@@ -34,8 +36,8 @@ export type PropertyRow = {
 
 const PROPERTY_COLUMNS = `
   id, name, slug, short_name, color, location_name, location_url,
-  description, timezone, currency, check_in_time, check_out_time,
-  cleaning_gap_hours, deposit_percentage, nightly_rate, min_nights, max_guests,
+  description, timezone, currency, check_in_time, check_in_until, check_out_time,
+  cleaning_gap_hours, cleaning_gap_days, deposit_percentage, nightly_rate, min_nights, max_guests,
   booking_horizon_days, hold_minutes, terms_version, terms_content,
   pix_key, pix_holder_name, payment_instructions, hero_image_url, amenities`;
 
@@ -82,6 +84,7 @@ export function publicProperty(property: PropertyRow, rates?: RateSummary) {
     currency: property.currency,
     timezone: property.timezone,
     checkInTime: property.check_in_time,
+    checkInUntil: property.check_in_until,
     checkOutTime: property.check_out_time,
     nightlyRate: property.nightly_rate,
     depositPercentage: property.deposit_percentage,
@@ -102,10 +105,9 @@ export function publicProperty(property: PropertyRow, rates?: RateSummary) {
 }
 
 /**
- * Uma noite `d` está indisponível quando a janela real de ocupação
- * `[d + check_in_time, d+1 + check_out_time + faxina)` colide com algum bloqueio
- * ativo. Calcular isso no banco — e não no navegador — evita que o front-end
- * erre por fuso ou por desconhecer o intervalo de limpeza.
+ * Uma noite `d` está indisponível quando pertence a algum bloqueio ativo. Com
+ * estoque por noite a comparação é direta — `d <@ blocked_nights` — e não
+ * depende de horário nem de fuso.
  */
 export async function unavailableNights(
   property: PropertyRow,
@@ -122,22 +124,10 @@ export async function unavailableNights(
      WHERE EXISTS (
        SELECT 1 FROM inventory_blocks b
        WHERE b.property_id = $1 AND b.active = true
-         AND b.blocked_period && tstzrange(
-           ((d::date + $4::time) AT TIME ZONE $6),
-           (((d::date + 1) + $5::time) AT TIME ZONE $6) + ($7::int * interval '1 hour'),
-           '[)'
-         )
+         AND b.blocked_nights @> d::date
      )
      ORDER BY d`,
-    [
-      property.id,
-      from,
-      to,
-      property.check_in_time,
-      property.check_out_time,
-      property.timezone,
-      property.cleaning_gap_hours
-    ]
+    [property.id, from, to]
   );
 
   return { from, to, unavailable: result.rows.map((row) => row.day) };
@@ -148,13 +138,8 @@ export async function rangeIsFree(propertyId: string, checkIn: string, checkOut:
   const result = await query<{ blocked: boolean }>(
     `SELECT EXISTS (
        SELECT 1 FROM inventory_blocks b
-       JOIN properties p ON p.id = b.property_id
        WHERE b.property_id = $1 AND b.active = true
-         AND b.blocked_period && tstzrange(
-           (($2::date + p.check_in_time) AT TIME ZONE p.timezone),
-           (($3::date + p.check_out_time) AT TIME ZONE p.timezone),
-           '[)'
-         )
+         AND b.blocked_nights && daterange($2::date, $3::date, '[)')
      ) AS blocked`,
     [propertyId, checkIn, checkOut]
   );

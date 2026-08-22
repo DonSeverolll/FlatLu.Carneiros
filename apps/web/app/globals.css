@@ -194,3 +194,4 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .unit-switch { border-top: 3px solid; }
 .admin-booking strong { align-items: center; display: flex; gap: 2px; }
 .feedback p { margin: 4px 0; }
+.schedule { border-left: 2px solid var(--coral); margin: 26px 0 0; padding: 2px 0 2px 14px; }

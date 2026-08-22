@@ -14,6 +14,9 @@ Os três são **locais distintos**: alugar um não ocupa outro. Cada um tem
 calendário, tarifa, capacidade, chave Pix e cor próprios. A cor identifica o
 espaço no calendário, nos cards, na página de pagamento e no painel.
 
+**Horários:** check-in a partir das 09:00 até as 16:00; check-out
+impreterivelmente até as 16:00.
+
 **Princípio que organiza o código:** o front-end nunca decide disponibilidade,
 preço ou permissão. Quem garante que duas reservas não ocupam a mesma noite é o
 PostgreSQL, com uma constraint de exclusão — não um `if` na aplicação. Como a
@@ -154,6 +157,26 @@ npm run promote:admin voce@email.com
 ## O que foi corrigido
 
 Ver [CORRECOES.md](CORRECOES.md) — inclui o que **não** foi verificado.
+
+## Estoque por noite
+
+O bloqueio de estoque é um intervalo de **noites** (`inventory_blocks.blocked_nights`,
+um `DATERANGE`), não um intervalo de relógio. Uma estadia de 04 a 07 ocupa as
+noites 04, 05 e 06 — o dia 07 é da saída e continua vendável, então a virada no
+mesmo dia funciona.
+
+Isso não era assim antes: o bloqueio ia de `check_in_time` do dia de entrada até
+`check_out_time` do dia de saída. Funcionava enquanto a janela cabia em 24 horas
+(check-in 15:00 / check-out 11:00 dava exatamente 24h e as noites se encaixavam).
+Com check-in às 09:00 e check-out às 16:00 a janela passou a medir 35 horas e
+cada estadia invadia as noites vizinhas dos dois lados — uma reserva de 3 noites
+tirava 5 do calendário.
+
+Horário de chegada e de saída voltaram a ser o que são: cláusula contratual
+exibida ao hóspede, não geometria de disponibilidade. Quem precisar de folga
+entre hóspedes usa `cleaning_gap_days`, que estende o bloqueio em dias inteiros
+— a unidade em que o estoque realmente é contado. O padrão é `0`, isto é, virada
+no mesmo dia liberada.
 
 ## Calendário de tarifas
 
