@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Flat Praia de Carneiros',
-  description: 'Reserve sua estadia na Praia de Carneiros: disponibilidade real e sinal por Pix.',
+  title: 'Apt Carneiros — Flat & Casa',
+  description:
+    'Flat na Praia de Carneiros e os dois andares da casa em São José da Coroa Grande. Disponibilidade real e sinal por Pix.',
   openGraph: {
-    title: 'Flat Praia de Carneiros',
-    description: 'Reserve sua estadia na Praia de Carneiros.',
+    title: 'Apt Carneiros — Flat & Casa',
+    description: 'Três espaços independentes no litoral sul de Pernambuco.',
     locale: 'pt_BR',
     type: 'website'
   },

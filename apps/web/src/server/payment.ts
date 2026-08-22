@@ -92,7 +92,11 @@ export async function createPaymentIntent(reservationId: string, customerId: str
       checkOut: reservation.check_out,
       totalAmount: reservation.total_amount,
       depositAmount: reservation.deposit_amount,
-      holdExpiresAt: reservation.expires_at
+      holdExpiresAt: reservation.expires_at,
+      // Com três espaços, o hóspede precisa ver qual está pagando.
+      unitName: property.short_name ?? property.name,
+      unitColor: property.color ?? null,
+      unitLocation: property.location_name ?? null
     }
   };
 }

@@ -138,7 +138,7 @@ try {
   check('login por e-mail funciona', r.status === 200 && r.json?.user?.role === 'ADMIN', r.json?.user?.role);
 
   r = await a.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: {
-    depositPercentage: 50, minNights: 1, maxGuests: 4,
+    depositPercentage: 50, minNights: 1,
     pixKey: 'e2e-teste@pix.local', pixHolderName: 'Flat Praia de Carneiros'
   }});
   check('PATCH da propriedade aceito', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -180,7 +180,8 @@ try {
     propertyId: 'flat-praia-de-carneiros', checkIn, checkOut, guestCount: 9,
     termsAccepted: true, idempotencyKey: `e2e-max-${stamp}`
   }});
-  check('9 hóspedes recusados (capacidade 4)', r.json?.error === 'ABOVE_MAX_GUESTS', r.json?.error);
+  check('9 hóspedes recusados (flat acomoda 7)', r.json?.error === 'ABOVE_MAX_GUESTS',
+    `${r.json?.error} max=${r.json?.details?.maxGuests}`);
 
   r = await a.call('/api/reservations', { method: 'POST', body: {
     propertyId: 'flat-praia-de-carneiros', checkIn: '2020-01-01', checkOut: '2020-01-05', guestCount: 2,
@@ -215,7 +216,43 @@ try {
   check('idempotência: mesma chave devolve a mesma reserva',
     repeat.status === 200 && repeat.json?.reservation?.id === reservation.id);
 
-  console.log('\n--- 6. anti-overbooking');
+  console.log('\n--- 6. independência entre os espaços');
+  const cal = (await a.call('/api/units')).json;
+  check('as três unidades vêm em uma resposta', (cal?.units ?? []).length === 3,
+    (cal?.units ?? []).map((u) => u.shortName).join(', '));
+  check('cada unidade tem cor própria',
+    new Set((cal?.units ?? []).map((u) => u.color)).size === (cal?.units ?? []).length,
+    (cal?.units ?? []).map((u) => `${u.shortName}=${u.color}`).join(' '));
+  check('capacidades conferem com a tabela',
+    (cal?.units ?? []).every((u) => u.slug === 'flat-praia-de-carneiros' ? u.maxGuests === 7 : u.maxGuests === 10),
+    (cal?.units ?? []).map((u) => `${u.shortName}:${u.maxGuests}`).join(' '));
+
+  // A reserva do flat (seção 5) não pode ter ocupado a casa nas mesmas datas.
+  const others = (cal?.units ?? []).filter((u) => u.slug !== 'flat-praia-de-carneiros');
+  const leaked = others.filter((u) => (u.unavailable ?? []).includes(checkIn));
+  check('reservar o flat não ocupa a casa nas mesmas datas', leaked.length === 0,
+    leaked.length ? leaked.map((u) => u.shortName).join(', ') : 'nenhum vazamento');
+
+  const casa = others[0];
+  q = await quoteFor(checkIn, checkOut);
+  const casaQuote = (await a.call(
+    `/api/properties/${casa.slug}/quote?checkIn=${checkIn}&checkOut=${checkOut}`)).json;
+  check('a casa continua disponível e com tarifa própria',
+    casaQuote?.available === true && casaQuote?.quote?.totalAmount !== q?.quote?.totalAmount,
+    `casa ${casaQuote?.quote?.totalAmount} vs flat ${q?.quote?.totalAmount}`);
+
+  r = await a.call('/api/reservations', { method: 'POST', body: {
+    propertyId: casa.slug, checkIn, checkOut, guestCount: 2,
+    termsAccepted: true, idempotencyKey: `e2e-casa-${stamp}`
+  }});
+  check('mesma data em espaço diferente é aceita', r.status === 201,
+    `${r.status} ${r.json?.error ?? ''}`);
+  const casaReservation = r.json?.reservation;
+  check('valor da casa segue a tarifa da casa',
+    casaReservation?.total_amount === casaQuote?.quote?.totalAmount,
+    `${casaReservation?.total_amount}`);
+
+  console.log('\n--- 7. anti-overbooking dentro do mesmo espaço');
   const rv = session();
   await rv.call('/api/auth/register', { method: 'POST', body: rival });
   r = await rv.call('/api/reservations', { method: 'POST', body: {
@@ -238,7 +275,7 @@ try {
     `${unavailable.length} noites`);
   check('availability não expõe o motivo do bloqueio', !r.text.includes('RESERVATION') && !r.text.includes('source'));
 
-  console.log('\n--- 7. cobrança Pix');
+  console.log('\n--- 8. cobrança Pix');
   r = await a.call(`/api/reservations/${reservation.id}/payment-intent`, { method: 'POST' });
   check('payment-intent devolve 201', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
   const intent = r.json;
@@ -259,7 +296,7 @@ try {
   r = await a.call(`/api/reservations/${reservation.id}/pix-qr`);
   check('QR renderizado como SVG', r.status === 200 && r.text.startsWith('<svg'), `${r.status}`);
 
-  console.log('\n--- 8. pagamento parcial não expira a reserva');
+  console.log('\n--- 9. pagamento parcial não expira a reserva');
   const before = (await db.query('select expires_at from reservations where id = $1', [reservation.id])).rows[0].expires_at;
   r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.depositAmount), status: 'PARTIAL' } });
   check('sinal confirmado', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -275,11 +312,11 @@ try {
   const survived = (await db.query('select status from reservations where id = $1', [reservation.id])).rows[0];
   check('varredor de holds não expira quem já pagou', survived.status === 'PENDING_PAYMENT', survived.status);
 
-  console.log('\n--- 9. pagamento total confirma');
+  console.log('\n--- 10. pagamento total confirma');
   r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.totalAmount), status: 'PAID' } });
   check('pagamento total aceito', r.status === 200 && r.json?.status === 'CONFIRMED', r.json?.status);
 
-  console.log('\n--- 10. sessão: renovação e revogação');
+  console.log('\n--- 11. sessão: renovação e revogação');
   const oldRefresh = a.jar.get('refresh');
   r = await a.call('/api/auth/refresh', { method: 'POST' });
   check('refresh renova a sessão', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -309,7 +346,7 @@ try {
      where u.email = $1 and s.revoked_at is null`, [guest.email])).rows[0].n;
   check('reuso derruba todas as sessões do usuário', live === 0, `${live} ativa(s)`);
 
-  console.log('\n--- 11. autorização e auditoria');
+  console.log('\n--- 12. autorização e auditoria');
   r = await rv.call('/api/admin/reservations?from=2026-01-01&to=2027-01-01');
   check('CUSTOMER recebe 403 no painel admin', r.status === 403, `${r.status} ${r.json?.error}`);
   r = await rv.call(`/api/reservations/${reservation.id}`);
@@ -320,7 +357,7 @@ try {
   check('trilha de auditoria registrada', events.includes('CREATED') && events.includes('PAYMENT_PARTIAL') && events.includes('PAYMENT_PAID'),
     events.join(' → '));
 
-  console.log('\n--- 12. cancelamento libera a data');
+  console.log('\n--- 13. cancelamento libera a data');
   r = await a.call(`/api/admin/reservations/${adjacent.id}/cancel`, { method: 'POST', body: { reason: 'Teste E2E', refund: false } });
   check('cancelamento aceito', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
   const blocks = (await db.query(

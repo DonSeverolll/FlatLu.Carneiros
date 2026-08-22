@@ -35,6 +35,11 @@ export type PublicPropertyDto = {
   id: string;
   name: string;
   slug: string;
+  shortName: string;
+  /** Cor da unidade no calendário (#RRGGBB). */
+  color: string;
+  locationName: string | null;
+  locationUrl: string | null;
   description: string;
   currency: string;
   timezone: string;
@@ -51,6 +56,7 @@ export type PublicPropertyDto = {
   heroImageUrl: string | null;
   amenities: string[];
   ratePublished: boolean;
+  pixConfigured: boolean;
   rates: RateSummaryDto | null;
 };
 
@@ -64,6 +70,11 @@ export type AvailabilityDto = {
 export type ReservationDto = {
   id: string;
   property_id: string;
+  unit_slug?: string;
+  unit_name?: string;
+  unit_color?: string | null;
+  unit_location?: string | null;
+  unit_location_url?: string | null;
   check_in: string;
   check_out: string;
   status: string;
@@ -85,6 +96,9 @@ export type PaymentIntentDto = {
     totalAmount: string;
     depositAmount: string;
     holdExpiresAt: string;
+    unitName: string;
+    unitColor: string | null;
+    unitLocation: string | null;
   };
 };
 
@@ -97,4 +111,15 @@ export type UserDto = {
   phone: string | null;
   document_number: string | null;
   avatar_url: string | null;
+};
+
+/** Unidade com a disponibilidade já resolvida pelo servidor. */
+export type UnitDto = PublicPropertyDto & {
+  unavailable: string[];
+};
+
+export type UnitCalendarDto = {
+  from: string;
+  to: string;
+  units: UnitDto[];
 };

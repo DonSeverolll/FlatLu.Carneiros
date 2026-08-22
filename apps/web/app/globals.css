@@ -122,3 +122,75 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .period-row { align-items: baseline; border-top: 1px solid rgba(23,63,69,.14); display: flex; gap: 12px; justify-content: space-between; padding: 14px 0; }
 .period-row div { display: grid; gap: 5px; }
 .period-row span { color: var(--muted); font-size: 13px; }
+
+/* =========================================================================
+   Calendário multi-unidade: uma linha de cor por espaço, filtro e navegação
+   por mês. Formato espelha o material impresso que a anfitriã já usa.
+   ========================================================================= */
+.availability { background: #fffaf2; padding: 38px 34px 34px; }
+.availability-head { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; }
+.availability-head h2 { margin: 14px 0 0; }
+
+.unit-legend { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.unit-chip { align-items: center; background: none; border: 0; cursor: pointer; display: flex; font: inherit; gap: 10px; padding: 4px 0; text-align: left; width: 100%; }
+.unit-chip i { border: 2px solid; border-radius: 50%; display: block; flex: 0 0 auto; height: 13px; width: 13px; }
+.unit-chip span { display: grid; }
+.unit-chip strong { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+.unit-chip small { color: var(--muted); font-size: 12px; }
+.unit-chip:not(.on) { opacity: .45; }
+.unit-chip:not(.on) strong { text-decoration: line-through; }
+
+.month-nav { align-items: center; display: flex; gap: 18px; justify-content: center; margin: 34px 0 20px; }
+.month-nav strong { background: var(--sand); font-size: 15px; letter-spacing: .14em; min-width: 220px; padding: 11px 26px; text-align: center; }
+.month-nav button { background: none; border: 0; color: var(--ink); cursor: pointer; font-size: 26px; line-height: 1; padding: 4px 10px; }
+.month-nav button:disabled { cursor: not-allowed; opacity: .25; }
+
+.month-grid { border-left: 1px solid rgba(23,63,69,.14); border-top: 1px solid rgba(23,63,69,.14); display: grid; grid-template-columns: repeat(7, 1fr); }
+.month-head { background: var(--sand); border-bottom: 1px solid rgba(23,63,69,.14); border-right: 1px solid rgba(23,63,69,.14); color: var(--muted); font-size: 11px; letter-spacing: .12em; padding: 12px 6px; text-align: center; }
+.month-cell { border-bottom: 1px solid rgba(23,63,69,.14); border-right: 1px solid rgba(23,63,69,.14); min-height: 96px; }
+.month-cell.empty { background: rgba(23,63,69,.03); }
+.month-cell.edge { background: rgba(231,111,81,.16); }
+.month-cell.in-range { background: rgba(231,111,81,.07); }
+.month-cell.past { opacity: .35; }
+
+.day-hit { align-items: flex-start; background: none; border: 0; cursor: pointer; display: flex; flex-direction: column; font: inherit; gap: 9px; height: 100%; padding: 10px 11px; text-align: left; width: 100%; }
+.day-hit:disabled { cursor: not-allowed; }
+.day-number { font-size: 15px; font-weight: 500; }
+.day-marks { display: grid; gap: 5px; }
+.mark { display: block; font-style: normal; height: 11px; line-height: 11px; width: 11px; }
+.mark.free { border-radius: 50%; }
+.mark.taken { color: var(--ink); font-size: 12px; opacity: .75; }
+.legend-dot { background: var(--ink); display: inline-block; vertical-align: middle; }
+
+.availability-foot { display: flex; flex-wrap: wrap; gap: 8px 32px; justify-content: space-between; margin-top: 22px; }
+.availability-foot .hint { align-items: center; display: flex; gap: 6px; margin: 0; }
+
+.unit-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 34px; }
+.unit-card { background: var(--sand); border: 1px solid rgba(23,63,69,.16); border-top: 3px solid; cursor: pointer; display: grid; font: inherit; gap: 6px; padding: 18px; text-align: left; }
+.unit-card strong { font-size: 15px; }
+.unit-card span { color: var(--muted); font-size: 12px; }
+.unit-card b { font-size: 13px; margin-top: 6px; }
+.unit-card.on { background: white; box-shadow: 0 2px 0 rgba(23,63,69,.1); }
+.unit-card:not(.on) { opacity: .7; }
+
+.booking-form { background: #fffaf2; border-top: 3px solid; margin-top: 22px; padding: 34px; }
+.booking-form-head h2 { margin: 8px 0 0; }
+.booking-form .checkout-row { margin-top: 30px; }
+.unit-dot { border-radius: 50%; display: inline-block; height: 9px; margin-right: 7px; width: 9px; }
+
+@media (max-width: 900px) {
+  .availability { padding: 24px 16px; }
+  .month-cell { min-height: 74px; }
+  .day-hit { gap: 6px; padding: 7px; }
+  .month-nav strong { min-width: 0; padding: 10px 14px; }
+  .booking-form { padding: 24px 18px; }
+}
+
+/* Seletor de unidade no painel */
+.unit-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 4px; }
+.unit-tab { align-items: center; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; display: flex; font: inherit; font-size: 13px; gap: 7px; padding: 8px 12px; }
+.unit-tab.on { border-bottom-width: 2px; color: var(--ink); font-weight: 500; }
+.unit-tab:not(.on) { border-bottom-color: transparent !important; }
+.unit-switch { border-top: 3px solid; }
+.admin-booking strong { align-items: center; display: flex; gap: 2px; }
+.feedback p { margin: 4px 0; }

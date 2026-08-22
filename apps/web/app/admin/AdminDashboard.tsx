@@ -1,10 +1,10 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import RatePanel from './RatePanel';
 import { api, messageFor } from '@/lib/api';
 import { PAYMENT_LABEL, STATUS_LABEL, brl, shortDate } from '@/lib/format';
-import RatePanel from './RatePanel';
 
 type AdminReservation = {
   id: string;
@@ -15,21 +15,27 @@ type AdminReservation = {
   guest_count: number;
   total_amount: string;
   deposit_amount: string;
+  unit_slug: string;
+  unit_name: string;
+  unit_color: string | null;
   customer_name: string;
   customer_email: string;
   customer_phone: string | null;
   payment_reference: string | null;
 };
 
-type PropertySummary = {
+export type UnitSummary = {
   id: string;
+  slug: string;
   name: string;
+  shortName: string;
+  color: string;
+  locationName: string | null;
   nightlyRate: string;
   depositPercentage: string;
   minNights: number;
   maxGuests: number;
   pixConfigured: boolean;
-  pixHolderName: string | null;
   ratePublished: boolean;
 };
 
@@ -39,23 +45,31 @@ function isoToday(offsetDays = 0): string {
   return now.toISOString().slice(0, 10);
 }
 
-export default function AdminDashboard({ property }: { property: PropertySummary }) {
+export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
   const [reservations, setReservations] = useState<AdminReservation[]>([]);
   const [message, setMessage] = useState('Carregando painel...');
   const [busy, setBusy] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState(units[0]?.slug ?? '');
+  /** Filtro da agenda: null = todas as unidades. */
+  const [agendaUnit, setAgendaUnit] = useState<string | null>(null);
 
+  const unit = useMemo(
+    () => units.find((candidate) => candidate.slug === selectedSlug) ?? units[0]!,
+    [units, selectedSlug]
+  );
 
   const load = useCallback(async () => {
     try {
+      const filter = agendaUnit ? `&unit=${agendaUnit}` : '';
       const result = await api<{ reservations: AdminReservation[] }>(
-        `/api/admin/reservations?from=${isoToday(-30)}&to=${isoToday(365)}`
+        `/api/admin/reservations?from=${isoToday(-30)}&to=${isoToday(365)}${filter}`
       );
       setReservations(result.reservations);
       setMessage('');
     } catch (error) {
       setMessage(messageFor(error));
     }
-  }, []);
+  }, [agendaUnit]);
 
   useEffect(() => {
     void load();
@@ -83,7 +97,7 @@ export default function AdminDashboard({ property }: { property: PropertySummary
   /** Conciliação manual do Pix: confere o extrato e confirma aqui. */
   async function confirmPayment(reservation: AdminReservation, status: 'PAID' | 'PARTIAL') {
     const suggested = status === 'PAID' ? reservation.total_amount : reservation.deposit_amount;
-    const raw = window.prompt(`Valor recebido (R$):`, Number(suggested).toFixed(2));
+    const raw = window.prompt('Valor recebido (R$):', Number(suggested).toFixed(2));
     if (!raw) return;
     const amount = Number(raw.replace(',', '.'));
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -94,7 +108,11 @@ export default function AdminDashboard({ property }: { property: PropertySummary
     try {
       await api(`/api/admin/reservations/${reservation.id}/confirm-payment`, {
         method: 'POST',
-        body: { amount, status, note: `Conciliado no painel (${reservation.payment_reference ?? 'sem referência'})` }
+        body: {
+          amount,
+          status,
+          note: `Conciliado no painel (${reservation.payment_reference ?? 'sem referência'})`
+        }
       });
       setMessage(status === 'PAID' ? 'Pagamento total confirmado.' : 'Sinal confirmado.');
       await load();
@@ -126,8 +144,8 @@ export default function AdminDashboard({ property }: { property: PropertySummary
 
     setBusy('settings');
     try {
-      await api(`/api/admin/properties/${property.id}`, { method: 'PATCH', body });
-      setMessage('Configuração salva. Recarregue a vitrine para ver o preço publicado.');
+      await api(`/api/admin/properties/${unit.id}`, { method: 'PATCH', body });
+      setMessage(`Configuração de ${unit.shortName} salva. Recarregue para ver o efeito.`);
     } catch (error) {
       setMessage(messageFor(error));
     } finally {
@@ -140,7 +158,7 @@ export default function AdminDashboard({ property }: { property: PropertySummary
     const form = new FormData(event.currentTarget);
     setBusy('block');
     try {
-      await api(`/api/admin/properties/${property.id}/blocks`, {
+      await api(`/api/admin/properties/${unit.id}/blocks`, {
         method: 'POST',
         body: {
           startDate: form.get('startDate'),
@@ -149,7 +167,7 @@ export default function AdminDashboard({ property }: { property: PropertySummary
           reason: form.get('reason')
         }
       });
-      setMessage('Período bloqueado.');
+      setMessage(`Período bloqueado em ${unit.shortName}.`);
       (event.target as HTMLFormElement).reset();
     } catch (error) {
       setMessage(messageFor(error));
@@ -158,6 +176,7 @@ export default function AdminDashboard({ property }: { property: PropertySummary
     }
   }
 
+  const pending = units.filter((candidate) => !candidate.ratePublished || !candidate.pixConfigured);
 
   return (
     <main className="account admin-page">
@@ -165,16 +184,25 @@ export default function AdminDashboard({ property }: { property: PropertySummary
         ← Ver site
       </Link>
       <p className="eyebrow">Painel administrativo</p>
-      <h1>Operação do flat.</h1>
+      <h1>Operação dos espaços.</h1>
 
-      {(!property.ratePublished || !property.pixConfigured) && (
-        <p className="feedback" role="status">
-          {!property.ratePublished &&
-            'Nenhuma tarifa publicada: a vitrine mostra "sob consulta" e reservas são recusadas. '}
-          {!property.pixConfigured && 'A chave Pix não está configurada, então não é possível cobrar o sinal.'}
-        </p>
+      {pending.length > 0 && (
+        <div className="feedback" role="status">
+          {pending.map((candidate) => (
+            <p key={candidate.slug}>
+              <strong>{candidate.shortName}</strong>:{' '}
+              {[
+                !candidate.ratePublished && 'tarifa não publicada (vitrine mostra "sob consulta")',
+                !candidate.pixConfigured && 'chave Pix não configurada (não dá para cobrar o sinal)'
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          ))}
+        </div>
       )}
 
+      {/* ---- Agenda: todas as unidades por padrão ---- */}
       <section className="panel">
         <div className="admin-heading">
           <h2>Reservas</h2>
@@ -182,21 +210,51 @@ export default function AdminDashboard({ property }: { property: PropertySummary
             Atualizar
           </button>
         </div>
+
+        <div className="unit-filter">
+          <button
+            className={agendaUnit === null ? 'unit-tab on' : 'unit-tab'}
+            onClick={() => setAgendaUnit(null)}
+            type="button"
+          >
+            Todos os espaços
+          </button>
+          {units.map((candidate) => (
+            <button
+              className={agendaUnit === candidate.slug ? 'unit-tab on' : 'unit-tab'}
+              key={candidate.slug}
+              onClick={() => setAgendaUnit(candidate.slug)}
+              style={{ borderBottomColor: candidate.color }}
+              type="button"
+            >
+              <i className="unit-dot" style={{ background: candidate.color }} />
+              {candidate.shortName}
+            </button>
+          ))}
+        </div>
+
         {reservations.length ? (
           <div className="admin-list">
             {reservations.map((reservation) => (
               <article className="booking admin-booking" key={reservation.id}>
                 <div>
                   <strong>
-                    {shortDate(reservation.check_in)} → {shortDate(reservation.check_out)}
+                    <i
+                      className="unit-dot"
+                      style={{ background: reservation.unit_color ?? '#1F3A5F' }}
+                    />
+                    {reservation.unit_name} · {shortDate(reservation.check_in)} →{' '}
+                    {shortDate(reservation.check_out)}
                   </strong>
                   <span>
                     {reservation.customer_name} · {reservation.customer_email}
                     {reservation.customer_phone ? ` · ${reservation.customer_phone}` : ''}
                   </span>
-                  {reservation.payment_reference && (
-                    <span>ref. {reservation.payment_reference}</span>
-                  )}
+                  <span>
+                    {reservation.guest_count}{' '}
+                    {reservation.guest_count === 1 ? 'hóspede' : 'hóspedes'}
+                    {reservation.payment_reference ? ` · ref. ${reservation.payment_reference}` : ''}
+                  </span>
                 </div>
                 <div>
                   <span>
@@ -246,43 +304,94 @@ export default function AdminDashboard({ property }: { property: PropertySummary
         )}
       </section>
 
+      {/* ---- Configuração: uma unidade por vez ---- */}
+      <section className="panel unit-switch" style={{ borderTopColor: unit.color }}>
+        <h2>Configurar um espaço</h2>
+        <div className="unit-filter">
+          {units.map((candidate) => (
+            <button
+              className={candidate.slug === selectedSlug ? 'unit-tab on' : 'unit-tab'}
+              key={candidate.slug}
+              onClick={() => setSelectedSlug(candidate.slug)}
+              style={{ borderBottomColor: candidate.color }}
+              type="button"
+            >
+              <i className="unit-dot" style={{ background: candidate.color }} />
+              {candidate.shortName}
+            </button>
+          ))}
+        </div>
+        <p className="hint">
+          Editando <strong>{unit.name}</strong>
+          {unit.locationName ? ` — ${unit.locationName}` : ''}. Tarifas, Pix e bloqueios abaixo
+          valem só para este espaço.
+        </p>
+      </section>
+
       <div className="account-grid">
         <form className="panel" onSubmit={saveSettings}>
-          <h2>Tarifa e Pix</h2>
+          <h2>Ajustes e Pix</h2>
           <label>
             Diária de fallback (R$)
-            <input name="nightlyRate" inputMode="decimal" defaultValue={property.nightlyRate} />
+            <input
+              key={`rate-${unit.slug}`}
+              name="nightlyRate"
+              inputMode="decimal"
+              defaultValue={unit.nightlyRate}
+            />
           </label>
           <label>
             Sinal (%)
-            <input name="depositPercentage" inputMode="decimal" defaultValue={property.depositPercentage} />
+            <input
+              key={`dep-${unit.slug}`}
+              name="depositPercentage"
+              inputMode="decimal"
+              defaultValue={unit.depositPercentage}
+            />
           </label>
           <label>
             Estadia mínima (noites)
-            <input name="minNights" type="number" min={1} max={90} defaultValue={property.minNights} />
+            <input
+              key={`min-${unit.slug}`}
+              name="minNights"
+              type="number"
+              min={1}
+              max={90}
+              defaultValue={unit.minNights}
+            />
           </label>
           <label>
             Capacidade (hóspedes)
-            <input name="maxGuests" type="number" min={1} max={30} defaultValue={property.maxGuests} />
+            <input
+              key={`max-${unit.slug}`}
+              name="maxGuests"
+              type="number"
+              min={1}
+              max={30}
+              defaultValue={unit.maxGuests}
+            />
           </label>
           <label>
             Chave Pix
             <input
+              key={`pix-${unit.slug}`}
               name="pixKey"
-              placeholder={property.pixConfigured ? '••••••• (configurada)' : 'e-mail, CPF/CNPJ, telefone ou aleatória'}
+              placeholder={
+                unit.pixConfigured ? '••••••• (configurada)' : 'e-mail, CPF/CNPJ, telefone ou aleatória'
+              }
             />
           </label>
           <label>
             Nome do favorecido
-            <input name="pixHolderName" defaultValue={property.pixHolderName ?? ''} maxLength={160} />
+            <input key={`holder-${unit.slug}`} name="pixHolderName" maxLength={160} />
           </label>
           <button className="button" type="submit" disabled={busy === 'settings'}>
-            {busy === 'settings' ? 'Salvando...' : 'Salvar'}
+            {busy === 'settings' ? 'Salvando...' : `Salvar ${unit.shortName}`}
           </button>
           <p className="hint">
             A diária de fallback só vale para dias sem tarifa própria; o preço normal vem do
             calendário abaixo. A chave Pix nunca é devolvida pela API depois de salva — só o QR
-            gerado no servidor a usa.
+            gerado no servidor a usa. Cada espaço pode ter uma chave diferente.
           </p>
         </form>
 
@@ -309,16 +418,16 @@ export default function AdminDashboard({ property }: { property: PropertySummary
             <input name="reason" required minLength={3} maxLength={500} />
           </label>
           <button className="button" type="submit" disabled={busy === 'block'}>
-            {busy === 'block' ? 'Bloqueando...' : 'Bloquear'}
+            {busy === 'block' ? 'Bloqueando...' : `Bloquear em ${unit.shortName}`}
           </button>
           <p className="hint">
-            O bloqueio some do calendário público sem revelar o motivo, e a constraint do banco
-            recusa qualquer sobreposição com reserva existente.
+            O bloqueio some do calendário público sem revelar o motivo, e vale só para{' '}
+            {unit.shortName} — os outros espaços seguem à venda.
           </p>
         </form>
       </div>
 
-      <RatePanel propertyId={property.id} />
+      <RatePanel key={unit.slug} propertyId={unit.id} unitName={unit.shortName} />
 
       {message && (
         <p className="feedback" role="status">

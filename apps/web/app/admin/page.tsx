@@ -1,35 +1,44 @@
 import Link from 'next/link';
 import AdminDashboard from './AdminDashboard';
-import { config } from '@/server/config';
-import { findProperty } from '@/server/property';
-import { publicRateSummary } from '@/server/rateSummary';
+import { unitCalendar } from '@/server/units';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Casca de servidor só para resolver qual propriedade o painel administra —
- * o slug é configuração de ambiente e não deve ir para o bundle do navegador.
- * A autorização real acontece nas rotas `/api/admin/*` (`requireAdmin`); esta
- * página não expõe dado nenhum antes de o painel autenticar.
+ * Casca de servidor: resolve as unidades que o painel administra. A autorização
+ * real acontece nas rotas `/api/admin/*` (`requireAdmin`) — esta página não
+ * expõe dado de reserva nenhum antes de o painel autenticar.
  */
 export default async function AdminPage() {
   try {
-    const property = await findProperty(config.propertySlug);
-    const rates = await publicRateSummary(property.id, property.timezone);
+    const calendar = await unitCalendar();
+    if (!calendar.units.length) {
+      return (
+        <main className="account admin-page">
+          <Link className="back-link" href="/">
+            ← Ver site
+          </Link>
+          <p className="feedback">Nenhuma unidade cadastrada.</p>
+        </main>
+      );
+    }
+
     return (
       <AdminDashboard
-        property={{
-          id: property.id,
-          name: property.name,
-          nightlyRate: property.nightly_rate,
-          depositPercentage: property.deposit_percentage,
-          minNights: property.min_nights,
-          maxGuests: property.max_guests,
-          pixConfigured: Boolean(property.pix_key),
-          pixHolderName: property.pix_holder_name,
-          // Publicada se houver tarifa de dia da semana OU a diária de fallback.
-          ratePublished: Number(property.nightly_rate) > 0 || (rates.fromCents ?? 0) > 0
-        }}
+        units={calendar.units.map((unit) => ({
+          id: unit.id,
+          slug: unit.slug,
+          name: unit.name,
+          shortName: unit.shortName,
+          color: unit.color,
+          locationName: unit.locationName,
+          nightlyRate: unit.nightlyRate,
+          depositPercentage: unit.depositPercentage,
+          minNights: unit.minNights,
+          maxGuests: unit.maxGuests,
+          pixConfigured: unit.pixConfigured,
+          ratePublished: unit.ratePublished
+        }))}
       />
     );
   } catch {

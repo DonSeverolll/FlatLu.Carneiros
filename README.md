@@ -1,11 +1,24 @@
-# Carneiros Flat Booking
+# Apt Carneiros — Flat & Casa
 
-Sistema de reservas para uma propriedade única — vitrine, calendário com
-disponibilidade real, reserva com hold, sinal por Pix e área do hóspede.
+Sistema de reservas para três espaços independentes — vitrine, calendário
+mensal com disponibilidade real, reserva com hold, sinal por Pix e área do
+hóspede.
+
+| Espaço | Local | Capacidade |
+|---|---|---|
+| Flat Carneiros | Praia de Carneiros, Tamandaré — PE | 7 |
+| Casa Térreo | São José da Coroa Grande — PE | 10 |
+| Casa 1º Andar | São José da Coroa Grande — PE | 10 |
+
+Os três são **locais distintos**: alugar um não ocupa outro. Cada um tem
+calendário, tarifa, capacidade, chave Pix e cor próprios. A cor identifica o
+espaço no calendário, nos cards, na página de pagamento e no painel.
 
 **Princípio que organiza o código:** o front-end nunca decide disponibilidade,
 preço ou permissão. Quem garante que duas reservas não ocupam a mesma noite é o
-PostgreSQL, com uma constraint de exclusão — não um `if` na aplicação.
+PostgreSQL, com uma constraint de exclusão — não um `if` na aplicação. Como a
+constraint é chaveada por `property_id`, ela protege cada espaço separadamente,
+que é exatamente o comportamento desejado para locais independentes.
 
 ## Estrutura
 
@@ -89,7 +102,8 @@ Nada é inventado pelo sistema: enquanto a diária for `0`, a vitrine mostra
 "Tarifa sob consulta" e a API recusa criar reserva com `RATE_NOT_PUBLISHED`.
 Preço errado nunca vai ao ar.
 
-1. Crie sua conta em `/cadastro` e promova-se a administrador:
+1. Crie sua conta em `/cadastro` e promova-se a administrador (ou use
+   `npm run seed:admins`):
    ```bash
    DATABASE_URL="postgresql://..." node scripts/promote-admin.mjs voce@email.com
    ```
@@ -154,14 +168,13 @@ dia da semana → diária de fallback da propriedade.
 
 ### Tarifa por dia da semana
 
-Configurada em `/admin`. Tabela em vigor:
+Configurada em `/admin`, por espaço. Tabela em vigor:
 
-| Dia | Valor |
-|---|---|
-| Segunda a quinta | R$ 300 |
-| Sexta | R$ 400 |
-| Sábado | R$ 1.000 |
-| Domingo | R$ 300 |
+| Dia | Flat | Cada andar da casa |
+|---|---|---|
+| Domingo a quinta | R$ 300 | R$ 700 |
+| Sexta | R$ 400 | R$ 900 |
+| Sábado | R$ 1.000 | R$ 1.900 |
 
 Um dia com tarifa **0** não é vendido: a vitrine mostra "sob consulta" e a API
 recusa a reserva com `RATE_NOT_PUBLISHED`. Preço errado nunca vai ao ar.

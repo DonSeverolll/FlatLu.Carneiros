@@ -42,7 +42,13 @@ const emptyDraft: Draft = {
   arrivalAllowed: true
 };
 
-export default function RatePanel({ propertyId }: { propertyId: string }) {
+export default function RatePanel({
+  propertyId,
+  unitName
+}: {
+  propertyId: string;
+  unitName: string;
+}) {
   const [drafts, setDrafts] = useState<Draft[]>(() => WEEKDAY_NAMES.map(() => ({ ...emptyDraft })));
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [message, setMessage] = useState('');
@@ -163,7 +169,7 @@ export default function RatePanel({ propertyId }: { propertyId: string }) {
     <>
       <section className="panel">
         <div className="admin-heading">
-          <h2>Tarifa por dia da semana</h2>
+          <h2>Tarifa por dia — {unitName}</h2>
           <button
             className="button button-small"
             type="button"
@@ -211,7 +217,7 @@ export default function RatePanel({ propertyId }: { propertyId: string }) {
       </section>
 
       <section className="panel">
-        <h2>Períodos especiais</h2>
+        <h2>Períodos especiais — {unitName}</h2>
         {periods.length ? (
           periods.map((period) => (
             <div className="period-row" key={period.id}>
@@ -237,7 +243,9 @@ export default function RatePanel({ propertyId }: { propertyId: string }) {
             </div>
           ))
         ) : (
-          <p className="hint">Nenhum período especial. Natal, Réveillon e feriados entram aqui.</p>
+          <p className="hint">
+            Nenhum período especial em {unitName}. Natal, Réveillon e feriados entram aqui.
+          </p>
         )}
 
         <form onSubmit={createPeriod}>

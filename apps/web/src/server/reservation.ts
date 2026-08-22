@@ -155,10 +155,28 @@ export async function createReservation(
   });
 }
 
+/**
+ * Com três espaços, o hóspede precisa ver QUAL ele reservou. As colunas da
+ * unidade entram por join nas leituras; o INSERT continua sem elas porque
+ * RETURNING não junta tabelas.
+ */
+const UNIT_JOIN_COLUMNS = `
+  p.slug AS unit_slug, COALESCE(p.short_name, p.name) AS unit_name,
+  p.color AS unit_color, p.location_name AS unit_location,
+  p.location_url AS unit_location_url,
+  p.check_in_time::text AS check_in_time, p.check_out_time::text AS check_out_time`;
+
+const RESERVATION_READ_COLUMNS = `
+  r.id, r.property_id, r.check_in::text AS check_in, r.check_out::text AS check_out,
+  r.status, r.payment_status, r.guest_count, r.total_amount, r.deposit_amount,
+  r.terms_accepted, r.accepted_terms_version, r.created_at, r.expires_at,
+  r.rate_breakdown`;
+
 export async function listMyReservations(customerId: string) {
   const result = await query(
-    `SELECT ${RESERVATION_COLUMNS} FROM reservations
-     WHERE customer_id = $1 ORDER BY check_in DESC`,
+    `SELECT ${RESERVATION_READ_COLUMNS}, ${UNIT_JOIN_COLUMNS}
+     FROM reservations r JOIN properties p ON p.id = r.property_id
+     WHERE r.customer_id = $1 ORDER BY r.check_in DESC`,
     [customerId]
   );
   return result.rows;
@@ -166,7 +184,9 @@ export async function listMyReservations(customerId: string) {
 
 export async function getMyReservation(customerId: string, reservationId: string) {
   const result = await query(
-    `SELECT ${RESERVATION_COLUMNS} FROM reservations WHERE id = $1 AND customer_id = $2`,
+    `SELECT ${RESERVATION_READ_COLUMNS}, ${UNIT_JOIN_COLUMNS}
+     FROM reservations r JOIN properties p ON p.id = r.property_id
+     WHERE r.id = $1 AND r.customer_id = $2`,
     [reservationId, customerId]
   );
   const reservation = result.rows[0];

@@ -5,7 +5,12 @@ import { isIsoDate } from './dates';
 
 const isoDate = z.string().refine(isIsoDate, 'Use o formato YYYY-MM-DD');
 
-export const agendaSchema = z.object({ from: isoDate, to: isoDate });
+export const agendaSchema = z.object({
+  from: isoDate,
+  to: isoDate,
+  /** Slug ou id da unidade; ausente = todas. */
+  unit: z.string().min(1).max(180).optional()
+});
 
 export const cancelSchema = z.object({
   reason: z.string().trim().min(3).max(500),
@@ -41,18 +46,26 @@ export const updatePropertySchema = z
   .strict();
 
 export async function agenda(range: z.infer<typeof agendaSchema>) {
+  // Com três espaços, a agenda precisa dizer de qual unidade é cada reserva —
+  // sem isso duas reservas na mesma data ficam indistinguíveis no painel.
   const result = await query(
     `SELECT r.id, r.check_in::text AS check_in, r.check_out::text AS check_out,
             r.status, r.payment_status, r.guest_count, r.total_amount, r.deposit_amount,
-            r.expires_at, u.full_name AS customer_name, u.email AS customer_email,
+            r.expires_at, r.rate_breakdown,
+            prop.slug AS unit_slug,
+            COALESCE(prop.short_name, prop.name) AS unit_name,
+            prop.color AS unit_color,
+            u.full_name AS customer_name, u.email AS customer_email,
             u.phone AS customer_phone,
             (SELECT p.reference FROM payments p
               WHERE p.reservation_id = r.id ORDER BY p.created_at DESC LIMIT 1) AS payment_reference
      FROM reservations r
      JOIN users u ON u.id = r.customer_id
+     JOIN properties prop ON prop.id = r.property_id
      WHERE r.check_in < $2::date AND r.check_out > $1::date
-     ORDER BY r.check_in`,
-    [range.from, range.to]
+       AND ($3::text IS NULL OR prop.slug = $3 OR prop.id::text = $3)
+     ORDER BY r.check_in, prop.display_order`,
+    [range.from, range.to, range.unit ?? null]
   );
   return result.rows;
 }

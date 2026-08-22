@@ -95,8 +95,13 @@ export default function PaymentPage({ params }: { params: Promise<{ reservationI
       <Link className="back-link" href="/conta">
         ← Minhas reservas
       </Link>
-      <p className="eyebrow">Pagamento do sinal</p>
+      <p className="eyebrow" style={{ color: intent.reservation.unitColor ?? undefined }}>
+        {intent.reservation.unitName}
+      </p>
       <h1>Falta pouco para confirmar.</h1>
+      {intent.reservation.unitLocation && (
+        <p className="hint">{intent.reservation.unitLocation}</p>
+      )}
 
       <div className="account-grid">
         <section className="panel">
@@ -134,6 +139,10 @@ export default function PaymentPage({ params }: { params: Promise<{ reservationI
         <section className="panel">
           <h2>Sua reserva</h2>
           <dl className="facts stacked">
+            <div>
+              <dt>Espaço</dt>
+              <dd>{intent.reservation.unitName}</dd>
+            </div>
             <div>
               <dt>Entrada</dt>
               <dd>{longDate(intent.reservation.checkIn)}</dd>

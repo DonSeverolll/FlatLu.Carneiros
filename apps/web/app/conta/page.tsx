@@ -129,7 +129,12 @@ export default function AccountPage() {
               return (
                 <article className="booking" key={reservation.id}>
                   <strong>
-                    {shortDate(reservation.check_in)} → {shortDate(reservation.check_out)}
+                    <i
+                      className="unit-dot"
+                      style={{ background: reservation.unit_color ?? '#1F3A5F' }}
+                    />
+                    {reservation.unit_name ?? 'Reserva'} · {shortDate(reservation.check_in)} →{' '}
+                    {shortDate(reservation.check_out)}
                   </strong>
                   <span>
                     {STATUS_LABEL[reservation.status] ?? reservation.status} ·{' '}

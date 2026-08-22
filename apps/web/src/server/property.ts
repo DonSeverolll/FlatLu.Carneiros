@@ -7,6 +7,10 @@ export type PropertyRow = {
   id: string;
   name: string;
   slug: string;
+  short_name?: string | null;
+  color?: string | null;
+  location_name?: string | null;
+  location_url?: string | null;
   description: string;
   timezone: string;
   currency: string;
@@ -29,7 +33,8 @@ export type PropertyRow = {
 };
 
 const PROPERTY_COLUMNS = `
-  id, name, slug, description, timezone, currency, check_in_time, check_out_time,
+  id, name, slug, short_name, color, location_name, location_url,
+  description, timezone, currency, check_in_time, check_out_time,
   cleaning_gap_hours, deposit_percentage, nightly_rate, min_nights, max_guests,
   booking_horizon_days, hold_minutes, terms_version, terms_content,
   pix_key, pix_holder_name, payment_instructions, hero_image_url, amenities`;
@@ -69,6 +74,10 @@ export function publicProperty(property: PropertyRow, rates?: RateSummary) {
     id: property.id,
     name: property.name,
     slug: property.slug,
+    shortName: property.short_name ?? property.name,
+    color: property.color ?? '#1F3A5F',
+    locationName: property.location_name ?? null,
+    locationUrl: property.location_url ?? null,
     description: property.description,
     currency: property.currency,
     timezone: property.timezone,
@@ -85,6 +94,8 @@ export function publicProperty(property: PropertyRow, rates?: RateSummary) {
     heroImageUrl: property.hero_image_url,
     amenities: property.amenities,
     ratePublished,
+    /** Booleano, nunca a chave: o painel precisa saber se dá para cobrar. */
+    pixConfigured: Boolean(property.pix_key),
     /** Só a estrutura de preços; o valor de uma estadia vem de /quote. */
     rates: rates ?? null
   };
