@@ -30,10 +30,51 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const PAYMENT_LABEL: Record<string, string> = {
   PENDING: 'pagamento pendente',
+  PROCESSING: 'processando',
   PARTIAL: 'sinal pago',
   PAID: 'pago',
+  DECLINED: 'negado',
+  OVERDUE: 'em atraso',
+  CANCELLED: 'cancelado',
   REFUNDED: 'reembolsado',
   FAILED: 'falhou'
+};
+
+/** Estado de uma cobrança, como o cliente lê no extrato. */
+export const CHARGE_STATUS: Record<string, { label: string; tone: 'good' | 'warn' | 'bad' | '' }> = {
+  PENDING: { label: 'Pendente', tone: 'warn' },
+  PROCESSING: { label: 'Processando', tone: 'warn' },
+  PAID: { label: 'Aprovado', tone: 'good' },
+  PARTIAL: { label: 'Parcial', tone: 'warn' },
+  DECLINED: { label: 'Negado', tone: 'bad' },
+  OVERDUE: { label: 'Em atraso', tone: 'bad' },
+  CANCELLED: { label: 'Cancelado', tone: '' },
+  REFUNDED: { label: 'Reembolsado', tone: '' },
+  FAILED: { label: 'Falhou', tone: 'bad' }
+};
+
+export const METHOD_LABEL: Record<string, string> = {
+  PIX: 'Pix',
+  CREDIT_CARD: 'Cartão de crédito',
+  DEBIT_CARD: 'Cartão de débito',
+  CASH: 'Dinheiro',
+  TRANSFER: 'Transferência'
+};
+
+export const CHARGE_KIND: Record<string, string> = {
+  DEPOSIT: 'Sinal',
+  BALANCE: 'Saldo',
+  FULL: 'Integral',
+  EXTRA: 'Extra'
+};
+
+export const CRM_STAGE: Record<string, string> = {
+  NEW: 'Novo',
+  CONTACTED: 'Contatado',
+  QUOTED: 'Orçado',
+  NEGOTIATING: 'Negociando',
+  WON: 'Fechado',
+  LOST: 'Perdido'
 };
 
 const MONTHS = [

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import AdminDashboard from './AdminDashboard';
 import { unitCalendar } from '@/server/units';
 
@@ -13,14 +12,7 @@ export default async function AdminPage() {
   try {
     const calendar = await unitCalendar();
     if (!calendar.units.length) {
-      return (
-        <main className="account admin-page">
-          <Link className="back-link" href="/">
-            ← Ver site
-          </Link>
-          <p className="feedback">Nenhuma unidade cadastrada.</p>
-        </main>
-      );
+      return <p className="feedback">Nenhuma unidade cadastrada.</p>;
     }
 
     return (
@@ -42,13 +34,6 @@ export default async function AdminPage() {
       />
     );
   } catch {
-    return (
-      <main className="account admin-page">
-        <Link className="back-link" href="/">
-          ← Ver site
-        </Link>
-        <p className="feedback">Banco de dados indisponível. Verifique a configuração.</p>
-      </main>
-    );
+    return <p className="feedback">Banco de dados indisponível. Verifique a configuração.</p>;
   }
 }

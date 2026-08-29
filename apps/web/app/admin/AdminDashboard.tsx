@@ -1,28 +1,9 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
 import RatePanel from './RatePanel';
 import { api, messageFor } from '@/lib/api';
-import { PAYMENT_LABEL, STATUS_LABEL, brl, shortDate } from '@/lib/format';
-
-type AdminReservation = {
-  id: string;
-  check_in: string;
-  check_out: string;
-  status: string;
-  payment_status: string;
-  guest_count: number;
-  total_amount: string;
-  deposit_amount: string;
-  unit_slug: string;
-  unit_name: string;
-  unit_color: string | null;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string | null;
-  payment_reference: string | null;
-};
 
 export type UnitSummary = {
   id: string;
@@ -39,89 +20,19 @@ export type UnitSummary = {
   ratePublished: boolean;
 };
 
-function isoToday(offsetDays = 0): string {
-  const now = new Date();
-  now.setUTCDate(now.getUTCDate() + offsetDays);
-  return now.toISOString().slice(0, 10);
-}
-
+/**
+ * Menu: configuração dos espaços. A lista de reservas vive na Agenda — tê-la
+ * nos dois lugares só criaria duas verdades sobre o mesmo dado.
+ */
 export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
-  const [reservations, setReservations] = useState<AdminReservation[]>([]);
-  const [message, setMessage] = useState('Carregando painel...');
+  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedSlug, setSelectedSlug] = useState(units[0]?.slug ?? '');
-  /** Filtro da agenda: null = todas as unidades. */
-  const [agendaUnit, setAgendaUnit] = useState<string | null>(null);
 
   const unit = useMemo(
     () => units.find((candidate) => candidate.slug === selectedSlug) ?? units[0]!,
     [units, selectedSlug]
   );
-
-  const load = useCallback(async () => {
-    try {
-      const filter = agendaUnit ? `&unit=${agendaUnit}` : '';
-      const result = await api<{ reservations: AdminReservation[] }>(
-        `/api/admin/reservations?from=${isoToday(-30)}&to=${isoToday(365)}${filter}`
-      );
-      setReservations(result.reservations);
-      setMessage('');
-    } catch (error) {
-      setMessage(messageFor(error));
-    }
-  }, [agendaUnit]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function cancel(id: string) {
-    const reason = window.prompt('Motivo do cancelamento (mínimo 3 caracteres):');
-    if (!reason || reason.trim().length < 3) return;
-    const refund = window.confirm('Marcar o pagamento como reembolsado?');
-    setBusy(id);
-    try {
-      await api(`/api/admin/reservations/${id}/cancel`, {
-        method: 'POST',
-        body: { reason: reason.trim(), refund }
-      });
-      setMessage('Reserva cancelada.');
-      await load();
-    } catch (error) {
-      setMessage(messageFor(error));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /** Conciliação manual do Pix: confere o extrato e confirma aqui. */
-  async function confirmPayment(reservation: AdminReservation, status: 'PAID' | 'PARTIAL') {
-    const suggested = status === 'PAID' ? reservation.total_amount : reservation.deposit_amount;
-    const raw = window.prompt('Valor recebido (R$):', Number(suggested).toFixed(2));
-    if (!raw) return;
-    const amount = Number(raw.replace(',', '.'));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('Valor inválido.');
-      return;
-    }
-    setBusy(reservation.id);
-    try {
-      await api(`/api/admin/reservations/${reservation.id}/confirm-payment`, {
-        method: 'POST',
-        body: {
-          amount,
-          status,
-          note: `Conciliado no painel (${reservation.payment_reference ?? 'sem referência'})`
-        }
-      });
-      setMessage(status === 'PAID' ? 'Pagamento total confirmado.' : 'Sinal confirmado.');
-      await load();
-    } catch (error) {
-      setMessage(messageFor(error));
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -136,6 +47,8 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
     if (Number.isInteger(minNights) && minNights >= 1) body.minNights = minNights;
     const maxGuests = Number(form.get('maxGuests'));
     if (Number.isInteger(maxGuests) && maxGuests >= 1) body.maxGuests = maxGuests;
+    const gapDays = Number(form.get('cleaningGapDays'));
+    if (Number.isInteger(gapDays) && gapDays >= 0) body.cleaningGapDays = gapDays;
 
     const pixKey = String(form.get('pixKey') ?? '').trim();
     if (pixKey) body.pixKey = pixKey;
@@ -179,12 +92,16 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
   const pending = units.filter((candidate) => !candidate.ratePublished || !candidate.pixConfigured);
 
   return (
-    <main className="account admin-page">
-      <Link className="back-link" href="/">
-        ← Ver site
-      </Link>
-      <p className="eyebrow">Painel administrativo</p>
-      <h1>Operação dos espaços.</h1>
+    <>
+      <header className="admin-head">
+        <div>
+          <p className="eyebrow">Menu</p>
+          <h1>Configuração dos espaços.</h1>
+        </div>
+        <Link className="link" href="/admin/dashboard">
+          Ver indicadores
+        </Link>
+      </header>
 
       {pending.length > 0 && (
         <div className="feedback" role="status">
@@ -202,111 +119,8 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
         </div>
       )}
 
-      {/* ---- Agenda: todas as unidades por padrão ---- */}
-      <section className="panel">
-        <div className="admin-heading">
-          <h2>Reservas</h2>
-          <button className="button button-small" type="button" onClick={() => void load()}>
-            Atualizar
-          </button>
-        </div>
-
-        <div className="unit-filter">
-          <button
-            className={agendaUnit === null ? 'unit-tab on' : 'unit-tab'}
-            onClick={() => setAgendaUnit(null)}
-            type="button"
-          >
-            Todos os espaços
-          </button>
-          {units.map((candidate) => (
-            <button
-              className={agendaUnit === candidate.slug ? 'unit-tab on' : 'unit-tab'}
-              key={candidate.slug}
-              onClick={() => setAgendaUnit(candidate.slug)}
-              style={{ borderBottomColor: candidate.color }}
-              type="button"
-            >
-              <i className="unit-dot" style={{ background: candidate.color }} />
-              {candidate.shortName}
-            </button>
-          ))}
-        </div>
-
-        {reservations.length ? (
-          <div className="admin-list">
-            {reservations.map((reservation) => (
-              <article className="booking admin-booking" key={reservation.id}>
-                <div>
-                  <strong>
-                    <i
-                      className="unit-dot"
-                      style={{ background: reservation.unit_color ?? '#1F3A5F' }}
-                    />
-                    {reservation.unit_name} · {shortDate(reservation.check_in)} →{' '}
-                    {shortDate(reservation.check_out)}
-                  </strong>
-                  <span>
-                    {reservation.customer_name} · {reservation.customer_email}
-                    {reservation.customer_phone ? ` · ${reservation.customer_phone}` : ''}
-                  </span>
-                  <span>
-                    {reservation.guest_count}{' '}
-                    {reservation.guest_count === 1 ? 'hóspede' : 'hóspedes'}
-                    {reservation.payment_reference ? ` · ref. ${reservation.payment_reference}` : ''}
-                  </span>
-                </div>
-                <div>
-                  <span>
-                    {STATUS_LABEL[reservation.status] ?? reservation.status} ·{' '}
-                    {PAYMENT_LABEL[reservation.payment_status] ?? reservation.payment_status}
-                  </span>
-                  <b>{brl(reservation.total_amount)}</b>
-                </div>
-                <div className="admin-actions">
-                  {reservation.payment_status !== 'PAID' &&
-                    ['PENDING_PAYMENT', 'CONFIRMED'].includes(reservation.status) && (
-                      <>
-                        <button
-                          className="text-button"
-                          type="button"
-                          disabled={busy === reservation.id}
-                          onClick={() => void confirmPayment(reservation, 'PARTIAL')}
-                        >
-                          Sinal recebido
-                        </button>
-                        <button
-                          className="text-button"
-                          type="button"
-                          disabled={busy === reservation.id}
-                          onClick={() => void confirmPayment(reservation, 'PAID')}
-                        >
-                          Pago integral
-                        </button>
-                      </>
-                    )}
-                  {['PENDING_PAYMENT', 'CONFIRMED'].includes(reservation.status) && (
-                    <button
-                      className="text-button"
-                      type="button"
-                      disabled={busy === reservation.id}
-                      onClick={() => void cancel(reservation.id)}
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p>Nenhuma reserva no período.</p>
-        )}
-      </section>
-
-      {/* ---- Configuração: uma unidade por vez ---- */}
       <section className="panel unit-switch" style={{ borderTopColor: unit.color }}>
-        <h2>Configurar um espaço</h2>
+        <h2>Escolha o espaço</h2>
         <div className="unit-filter">
           {units.map((candidate) => (
             <button
@@ -333,52 +147,30 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
           <h2>Ajustes e Pix</h2>
           <label>
             Diária de fallback (R$)
-            <input
-              key={`rate-${unit.slug}`}
-              name="nightlyRate"
-              inputMode="decimal"
-              defaultValue={unit.nightlyRate}
-            />
+            <input key={`rate-${unit.slug}`} name="nightlyRate" inputMode="decimal" defaultValue={unit.nightlyRate} />
           </label>
           <label>
             Sinal (%)
-            <input
-              key={`dep-${unit.slug}`}
-              name="depositPercentage"
-              inputMode="decimal"
-              defaultValue={unit.depositPercentage}
-            />
+            <input key={`dep-${unit.slug}`} name="depositPercentage" inputMode="decimal" defaultValue={unit.depositPercentage} />
           </label>
           <label>
             Estadia mínima (noites)
-            <input
-              key={`min-${unit.slug}`}
-              name="minNights"
-              type="number"
-              min={1}
-              max={90}
-              defaultValue={unit.minNights}
-            />
+            <input key={`min-${unit.slug}`} name="minNights" type="number" min={1} max={90} defaultValue={unit.minNights} />
           </label>
           <label>
             Capacidade (hóspedes)
-            <input
-              key={`max-${unit.slug}`}
-              name="maxGuests"
-              type="number"
-              min={1}
-              max={30}
-              defaultValue={unit.maxGuests}
-            />
+            <input key={`max-${unit.slug}`} name="maxGuests" type="number" min={1} max={30} defaultValue={unit.maxGuests} />
+          </label>
+          <label>
+            Dias de folga entre hóspedes
+            <input key={`gap-${unit.slug}`} name="cleaningGapDays" type="number" min={0} max={7} placeholder="0" />
           </label>
           <label>
             Chave Pix
             <input
               key={`pix-${unit.slug}`}
               name="pixKey"
-              placeholder={
-                unit.pixConfigured ? '••••••• (configurada)' : 'e-mail, CPF/CNPJ, telefone ou aleatória'
-              }
+              placeholder={unit.pixConfigured ? '••••••• (configurada)' : 'e-mail, CPF/CNPJ, telefone ou aleatória'}
             />
           </label>
           <label>
@@ -390,8 +182,9 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
           </button>
           <p className="hint">
             A diária de fallback só vale para dias sem tarifa própria; o preço normal vem do
-            calendário abaixo. A chave Pix nunca é devolvida pela API depois de salva — só o QR
-            gerado no servidor a usa. Cada espaço pode ter uma chave diferente.
+            calendário abaixo. <strong>Folga entre hóspedes</strong> em 0 libera a virada no mesmo
+            dia; em 1, o dia seguinte à saída sai do calendário. A chave Pix nunca é devolvida pela
+            API depois de salva — só o QR gerado no servidor a usa.
           </p>
         </form>
 
@@ -402,7 +195,7 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
             <input name="startDate" type="date" required />
           </label>
           <label>
-            Fim
+            Liberação
             <input name="endDate" type="date" required />
           </label>
           <label>
@@ -421,8 +214,9 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
             {busy === 'block' ? 'Bloqueando...' : `Bloquear em ${unit.shortName}`}
           </button>
           <p className="hint">
-            O bloqueio some do calendário público sem revelar o motivo, e vale só para{' '}
-            {unit.shortName} — os outros espaços seguem à venda.
+            A data de liberação funciona como check-out: bloquear de 10 a 12 tira as noites 10 e
+            11. O bloqueio some do calendário público sem revelar o motivo, e vale só para{' '}
+            {unit.shortName}.
           </p>
         </form>
       </div>
@@ -434,6 +228,6 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
           {message}
         </p>
       )}
-    </main>
+    </>
   );
 }
