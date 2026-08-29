@@ -59,8 +59,15 @@ export async function agenda(range: z.infer<typeof agendaSchema>) {
             prop.color AS unit_color,
             u.full_name AS customer_name, u.email AS customer_email,
             u.phone AS customer_phone,
+            r.staff_notes, r.guest_request, r.checked_in_at, r.checked_out_at, r.source,
             (SELECT p.reference FROM payments p
-              WHERE p.reservation_id = r.id ORDER BY p.created_at DESC LIMIT 1) AS payment_reference
+              WHERE p.reservation_id = r.id ORDER BY p.created_at DESC LIMIT 1) AS payment_reference,
+            (SELECT COALESCE(SUM(p.amount), 0) FROM payments p
+              WHERE p.reservation_id = r.id AND p.status IN ('PAID','PARTIAL')) AS pago,
+            (SELECT c.status::text FROM contracts c
+              WHERE c.reservation_id = r.id AND c.status <> 'CANCELLED') AS contract_status,
+            (SELECT c.signed_at FROM contracts c
+              WHERE c.reservation_id = r.id AND c.status = 'SIGNED') AS contract_signed_at
      FROM reservations r
      JOIN users u ON u.id = r.customer_id
      JOIN properties prop ON prop.id = r.property_id
@@ -207,4 +214,81 @@ export async function updateProperty(
     [adminId, propertyId, JSON.stringify({ fields: Object.keys(input) })]
   );
   return property;
+}
+
+// ---------------------------------------------------------------------------
+// Agenda operacional
+// ---------------------------------------------------------------------------
+
+export const reservationNotesSchema = z
+  .object({
+    staffNotes: z.string().trim().max(4000).nullable().optional(),
+    guestRequest: z.string().trim().max(4000).nullable().optional()
+  })
+  .strict();
+
+/** Observações da agenda: recado interno e pedido do hóspede, separados. */
+export async function saveReservationNotes(
+  reservationId: string,
+  adminId: string,
+  input: z.infer<typeof reservationNotesSchema>
+) {
+  const assignments: string[] = [];
+  const values: unknown[] = [reservationId];
+
+  if (Object.prototype.hasOwnProperty.call(input, 'staffNotes')) {
+    values.push(input.staffNotes);
+    assignments.push(`staff_notes = $${values.length}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'guestRequest')) {
+    values.push(input.guestRequest);
+    assignments.push(`guest_request = $${values.length}`);
+  }
+  if (!assignments.length) throw conflict('NO_FIELDS_TO_UPDATE');
+
+  const result = await query(
+    `UPDATE reservations SET ${assignments.join(', ')}, updated_at = now()
+     WHERE id = $1 RETURNING id, staff_notes, guest_request`,
+    values
+  );
+  if (!result.rowCount) throw notFound('RESERVATION_NOT_FOUND');
+
+  await query(
+    `INSERT INTO audit_events (actor_user_id, entity_type, entity_id, event_type, metadata)
+     VALUES ($1, 'RESERVATION', $2, 'NOTES_UPDATED', $3)`,
+    [adminId, reservationId, JSON.stringify({ fields: Object.keys(input) })]
+  );
+  return result.rows[0];
+}
+
+export const stayEventSchema = z.object({ event: z.enum(['CHECK_IN', 'CHECK_OUT', 'UNDO']) });
+
+/**
+ * Registra chegada e saída de fato. O check-out também encerra a estadia
+ * (COMPLETED), que é o que tira a reserva da lista de pendências operacionais.
+ */
+export async function registerStayEvent(
+  reservationId: string,
+  adminId: string,
+  input: z.infer<typeof stayEventSchema>
+) {
+  const sets: Record<string, string> = {
+    CHECK_IN: 'checked_in_at = now()',
+    CHECK_OUT: "checked_out_at = now(), status = CASE WHEN status = 'CONFIRMED' THEN 'COMPLETED'::reservation_status ELSE status END",
+    UNDO: 'checked_in_at = NULL, checked_out_at = NULL'
+  };
+
+  const result = await query(
+    `UPDATE reservations SET ${sets[input.event]}, updated_at = now()
+     WHERE id = $1 RETURNING id, status, checked_in_at, checked_out_at`,
+    [reservationId]
+  );
+  if (!result.rowCount) throw notFound('RESERVATION_NOT_FOUND');
+
+  await query(
+    `INSERT INTO audit_events (actor_user_id, entity_type, entity_id, event_type, metadata)
+     VALUES ($1, 'RESERVATION', $2, $3, '{}')`,
+    [adminId, reservationId, `STAY_${input.event}`]
+  );
+  return result.rows[0];
 }

@@ -7,6 +7,7 @@ import { assertBookable, quoteForProperty } from './quote';
 import { depositFor } from './rates';
 import { releaseExpiredHolds } from './inventory';
 import { findProperty } from './property';
+import { syncLeadFromReservation } from './crm';
 
 const isoDate = z.string().refine(isIsoDate, 'Use o formato YYYY-MM-DD');
 
@@ -142,6 +143,9 @@ export async function createReservation(
         })
       ]
     );
+
+    // O funil acompanha o que aconteceu, sem depender de alguém alimentar.
+    await syncLeadFromReservation(reservation.id, client);
 
     return { reservation, created: true };
   });

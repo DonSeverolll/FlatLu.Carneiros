@@ -15,7 +15,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ reservatio
   return handle(async () => {
     const session = await requireUser();
     const { reservationId } = z.object({ reservationId: z.string().uuid() }).parse(await ctx.params);
-    const intent = await createPaymentIntent(reservationId, session.id);
+    const intent = await createPaymentIntent(reservationId, session.id, {
+      method: 'PIX',
+      installments: 1,
+      kind: 'DEPOSIT'
+    });
+    if (!intent.pix) throw new Error('PIX_UNAVAILABLE');
     const svg = await QRCode.toString(intent.pix.payload, {
       type: 'svg',
       margin: 1,

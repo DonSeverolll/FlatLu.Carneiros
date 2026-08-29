@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { requireUser } from '@/server/auth';
-import { assertSameOrigin, handle, json } from '@/server/http';
-import { createPaymentIntent } from '@/server/payment';
+import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
+import { createPaymentIntent, paymentIntentSchema } from '@/server/payment';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ reservatio
     assertSameOrigin(request);
     const session = await requireUser();
     const { reservationId } = z.object({ reservationId: z.string().uuid() }).parse(await ctx.params);
-    return json(await createPaymentIntent(reservationId, session.id), 201);
+    const input = await parseBody(request, paymentIntentSchema).catch(() =>
+      paymentIntentSchema.parse({})
+    );
+    // A origem alimenta as URLs de retorno do provedor de cartão.
+    const origin = request.headers.get('origin') ?? '';
+    return json(await createPaymentIntent(reservationId, session.id, input, origin), 201);
   });
 }

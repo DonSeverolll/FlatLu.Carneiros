@@ -31,7 +31,16 @@ export const updateProfileSchema = z
     fullName: z.string().trim().min(3).max(160).optional(),
     phone: z.string().trim().max(32).nullable().optional(),
     documentNumber: z.string().trim().max(32).nullable().optional(),
-    avatarUrl: z.string().url().max(2000).nullable().optional()
+    avatarUrl: z.string().url().max(2000).nullable().optional(),
+    rg: z.string().trim().max(40).nullable().optional(),
+    rgIssuer: z.string().trim().max(40).nullable().optional(),
+    nationality: z.string().trim().max(60).nullable().optional(),
+    maritalStatus: z.string().trim().max(60).nullable().optional(),
+    profession: z.string().trim().max(80).nullable().optional(),
+    addressLine: z.string().trim().max(240).nullable().optional(),
+    addressCity: z.string().trim().max(120).nullable().optional(),
+    addressState: z.string().trim().max(2).nullable().optional(),
+    addressZip: z.string().trim().max(12).nullable().optional()
   })
   .strict();
 
@@ -44,9 +53,22 @@ export type PublicUser = {
   phone: string | null;
   document_number: string | null;
   avatar_url: string | null;
+  /* Qualificação para o contrato — preenchida no fluxo de reserva. */
+  rg: string | null;
+  rg_issuer: string | null;
+  nationality: string | null;
+  marital_status: string | null;
+  profession: string | null;
+  address_line: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_zip: string | null;
 };
 
-const USER_COLUMNS = 'id, email, username, full_name, role, phone, document_number, avatar_url';
+const USER_COLUMNS = `
+  id, email, username, full_name, role, phone, document_number, avatar_url,
+  rg, rg_issuer, nationality, marital_status, profession,
+  address_line, address_city, address_state, address_zip`;
 
 export async function registerUser(input: z.infer<typeof registerSchema>) {
   try {
@@ -100,7 +122,16 @@ const UPDATABLE = [
   ['fullName', 'full_name'],
   ['phone', 'phone'],
   ['documentNumber', 'document_number'],
-  ['avatarUrl', 'avatar_url']
+  ['avatarUrl', 'avatar_url'],
+  ['rg', 'rg'],
+  ['rgIssuer', 'rg_issuer'],
+  ['nationality', 'nationality'],
+  ['maritalStatus', 'marital_status'],
+  ['profession', 'profession'],
+  ['addressLine', 'address_line'],
+  ['addressCity', 'address_city'],
+  ['addressState', 'address_state'],
+  ['addressZip', 'address_zip']
 ] as const;
 
 export async function updateProfile(userId: string, input: z.infer<typeof updateProfileSchema>) {
