@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import GuestSidebar from './GuestSidebar';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -23,7 +24,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Acesso do hóspede em qualquer página; some no painel. */}
+        <GuestSidebar />
+      </body>
     </html>
   );
 }

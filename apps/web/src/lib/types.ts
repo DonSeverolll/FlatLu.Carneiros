@@ -77,6 +77,8 @@ export type ReservationDto = {
   unit_color?: string | null;
   unit_location?: string | null;
   unit_location_url?: string | null;
+  check_in_time?: string;
+  check_out_time?: string;
   check_in: string;
   check_out: string;
   status: string;
@@ -89,8 +91,22 @@ export type ReservationDto = {
 };
 
 export type PaymentIntentDto = {
-  payment: { id: string; reference: string; provider: string; amount: string; status: string };
-  pix: { key: string; holderName: string; payload: string; instructions: string | null };
+  payment: {
+    id: string;
+    reference: string;
+    provider: string;
+    amount: string;
+    status: string;
+    method: string;
+    kind: string;
+    installments: number;
+    dueDate: string | null;
+    checkoutUrl: string | null;
+  };
+  /** Preenchido quando o método é Pix. */
+  pix: { key: string; holderName: string; payload: string; instructions: string | null } | null;
+  /** Preenchido quando o método é cartão. */
+  card: { provider: string; checkoutUrl: string } | null;
   reservation: {
     id: string;
     checkIn: string;
@@ -108,6 +124,16 @@ export type UserDto = {
   id: string;
   email: string;
   username: string | null;
+  /* Qualificação para o contrato de locação. */
+  rg: string | null;
+  rg_issuer: string | null;
+  nationality: string | null;
+  marital_status: string | null;
+  profession: string | null;
+  address_line: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_zip: string | null;
   full_name: string;
   role: string;
   phone: string | null;

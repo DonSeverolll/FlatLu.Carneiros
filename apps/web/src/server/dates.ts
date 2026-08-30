@@ -18,11 +18,22 @@ export function isIsoDate(value: string): boolean {
   );
 }
 
-/** Número de noites entre duas datas civis. Negativo se invertidas. */
+/**
+ * Número de noites entre duas datas civis. Negativo se invertidas.
+ *
+ * `Date.UTC` recebe o mês em base ZERO. Espalhar [ano, mês, dia] direto nele
+ * desloca as duas datas um mês para a frente — o que passa despercebido
+ * enquanto ambas caem no mesmo mês, porque o deslocamento se cancela na
+ * subtração, e erra quando a estadia cruza a virada entre meses de tamanhos
+ * diferentes. 28/06 a 01/07 virava 4 noites em vez de 3.
+ */
+function utcDeIso(iso: string): number {
+  const [ano, mes, dia] = iso.split('-').map(Number);
+  return Date.UTC(ano!, mes! - 1, dia!);
+}
+
 export function nightsBetween(checkIn: string, checkOut: string): number {
-  const start = Date.UTC(...(checkIn.split('-').map(Number) as [number, number, number]));
-  const end = Date.UTC(...(checkOut.split('-').map(Number) as [number, number, number]));
-  return Math.round((end - start) / 86_400_000);
+  return Math.round((utcDeIso(checkOut) - utcDeIso(checkIn)) / 86_400_000);
 }
 
 export function addDaysIso(date: string, amount: number): string {

@@ -77,7 +77,8 @@ await db.connect();
 
 const propertyId = (await db.query(`select id from properties where slug = 'flat-praia-de-carneiros'`)).rows[0].id;
 const original = (await db.query(
-  'select nightly_rate, pix_key, min_nights, deposit_percentage, max_guests from properties where id = $1',
+  `select nightly_rate, pix_key, min_nights, deposit_percentage, max_guests,
+          address_line, legal_forum from properties where id = $1`,
   [propertyId]
 )).rows[0];
 
@@ -143,6 +144,11 @@ try {
   }});
   check('PATCH da propriedade aceito', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
   check('chave Pix não volta no corpo', !JSON.stringify(r.json).includes('e2e-teste@pix.local'));
+
+  await db.query(
+    `update properties set address_line = COALESCE(address_line, 'Rua de Teste, 1'),
+                           legal_forum = COALESCE(legal_forum, 'Tamandaré') where id = $1`,
+    [propertyId]);
 
   r = await a.call('/api/properties/flat-praia-de-carneiros');
   check('vitrine agora publica a diária', r.json?.property?.ratePublished === true);
@@ -288,7 +294,64 @@ try {
 
   check('availability não expõe o motivo do bloqueio', !r.text.includes('RESERVATION') && !r.text.includes('source'));
 
-  console.log('\n--- 8. cobrança Pix');
+  console.log('\n--- 8. contrato');
+  r = await a.call(`/api/reservations/${reservation.id}/payment-intent`, { method: 'POST' });
+  check('cobrança recusada antes do contrato assinado', r.json?.error === 'CONTRACT_NOT_SIGNED',
+    `${r.status} ${r.json?.error}`);
+
+  let c = await a.call(`/api/reservations/${reservation.id}/contract`);
+  check('fluxo aponta os dados que faltam', (c.json?.missingCustomerData ?? []).length > 0,
+    (c.json?.missingCustomerData ?? []).join(', '));
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract`, { method: 'POST' });
+  check('emissão recusada sem qualificação', r.status === 422 && r.json?.error === 'CUSTOMER_DATA_INCOMPLETE',
+    `${r.status} ${r.json?.error}`);
+
+  r = await a.call('/api/users/me/qualification', { method: 'PUT', body: {
+    fullName: guest.fullName, documentNumber: '103.352.634-70', rg: '963247', rgIssuer: 'SDS/PE',
+    nationality: 'brasileira', profession: 'assistente administrativa', maritalStatus: 'solteira',
+    addressLine: 'Rua 85, nº 05, Caetés 3', addressCity: 'Abreu e Lima',
+    addressState: 'PE', addressZip: '53545-750'
+  }});
+  check('qualificação salva', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract`, { method: 'POST' });
+  check('contrato emitido', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
+  const corpo = r.json?.contract?.body ?? '';
+  check('sem marcador não preenchido no texto', !corpo.includes('{{'),
+    (corpo.match(/\{\{[a-z_]+\}\}/g) ?? []).join(', ') || 'nenhum');
+  check('contrato traz o valor por extenso', corpo.includes('novecentos reais'),
+    corpo.match(/R\$ [\d.,]+ \([^)]+\)/)?.[0] ?? 'não encontrado');
+  check('contrato traz o nome do locatário', corpo.includes(guest.fullName));
+  check('contrato traz a comarca do foro', /Foro da Comarca de \S+/.test(corpo));
+  check('contrato traz os horários', corpo.includes('09:00') && corpo.includes('16:00'));
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract/sign`, { method: 'POST', body: {
+    signerName: 'Outra Pessoa Qualquer', signerCpf: '103.352.634-70', accepted: true }});
+  check('assinatura com nome divergente é recusada', r.json?.error === 'SIGNER_NAME_MISMATCH', r.json?.error);
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract/sign`, { method: 'POST', body: {
+    signerName: guest.fullName, signerCpf: '000.000.000-00', accepted: true }});
+  check('assinatura com CPF divergente é recusada', r.json?.error === 'SIGNER_CPF_MISMATCH', r.json?.error);
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract/sign`, { method: 'POST', body: {
+    signerName: guest.fullName, signerCpf: '103.352.634-70', accepted: true }});
+  check('assinatura registrada', r.status === 200 && !r.json?.alreadySigned, `${r.status} ${r.json?.error ?? ''}`);
+  check('hash de assinatura gerado', /^[0-9a-f]{64}$/.test(r.json?.signatureHash ?? ''),
+    (r.json?.signatureHash ?? '').slice(0, 16));
+
+  const assinado = (await db.query(
+    `select status::text, signer_ip::text, signed_at, body_hash from contracts where reservation_id = $1`,
+    [reservation.id])).rows[0];
+  check('contrato gravado como SIGNED com IP e instante',
+    assinado?.status === 'SIGNED' && assinado?.signed_at && assinado?.signer_ip,
+    `${assinado?.status} ip=${assinado?.signer_ip}`);
+
+  r = await a.call(`/api/reservations/${reservation.id}/contract/sign`, { method: 'POST', body: {
+    signerName: guest.fullName, signerCpf: '103.352.634-70', accepted: true }});
+  check('assinar de novo é idempotente', r.json?.alreadySigned === true, JSON.stringify(r.json));
+
+  console.log('\n--- 9. cobrança Pix');
   r = await a.call(`/api/reservations/${reservation.id}/payment-intent`, { method: 'POST' });
   check('payment-intent devolve 201', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
   const intent = r.json;
@@ -309,7 +372,7 @@ try {
   r = await a.call(`/api/reservations/${reservation.id}/pix-qr`);
   check('QR renderizado como SVG', r.status === 200 && r.text.startsWith('<svg'), `${r.status}`);
 
-  console.log('\n--- 9. pagamento parcial não expira a reserva');
+  console.log('\n--- 10. pagamento parcial não expira a reserva');
   const before = (await db.query('select expires_at from reservations where id = $1', [reservation.id])).rows[0].expires_at;
   r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.depositAmount), status: 'PARTIAL' } });
   check('sinal confirmado', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -325,11 +388,11 @@ try {
   const survived = (await db.query('select status from reservations where id = $1', [reservation.id])).rows[0];
   check('varredor de holds não expira quem já pagou', survived.status === 'PENDING_PAYMENT', survived.status);
 
-  console.log('\n--- 10. pagamento total confirma');
+  console.log('\n--- 11. pagamento total confirma');
   r = await a.call(`/api/admin/reservations/${reservation.id}/confirm-payment`, { method: 'POST', body: { amount: Number(expected.quote.totalAmount), status: 'PAID' } });
   check('pagamento total aceito', r.status === 200 && r.json?.status === 'CONFIRMED', r.json?.status);
 
-  console.log('\n--- 11. sessão: renovação e revogação');
+  console.log('\n--- 12. sessão: renovação e revogação');
   const oldRefresh = a.jar.get('refresh');
   r = await a.call('/api/auth/refresh', { method: 'POST' });
   check('refresh renova a sessão', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
@@ -359,7 +422,7 @@ try {
      where u.email = $1 and s.revoked_at is null`, [guest.email])).rows[0].n;
   check('reuso derruba todas as sessões do usuário', live === 0, `${live} ativa(s)`);
 
-  console.log('\n--- 12. autorização e auditoria');
+  console.log('\n--- 13. autorização e auditoria');
   r = await rv.call('/api/admin/reservations?from=2026-01-01&to=2027-01-01');
   check('CUSTOMER recebe 403 no painel admin', r.status === 403, `${r.status} ${r.json?.error}`);
   r = await rv.call(`/api/reservations/${reservation.id}`);
@@ -370,7 +433,7 @@ try {
   check('trilha de auditoria registrada', events.includes('CREATED') && events.includes('PAYMENT_PARTIAL') && events.includes('PAYMENT_PAID'),
     events.join(' → '));
 
-  console.log('\n--- 13. cancelamento libera a data');
+  console.log('\n--- 14. cancelamento libera a data');
   r = await a.call(`/api/admin/reservations/${adjacent.id}/cancel`, { method: 'POST', body: { reason: 'Teste E2E', refund: false } });
   check('cancelamento aceito', r.status === 200, `${r.status} ${r.json?.error ?? ''}`);
   const blocks = (await db.query(
@@ -393,9 +456,14 @@ try {
   // Devolve a propriedade ao estado anterior: não publico preço que não é meu.
   await db.query(
     `update properties set nightly_rate = $2, pix_key = $3, pix_holder_name = null,
-            min_nights = $4, deposit_percentage = $5, max_guests = $6 where id = $1`,
+            min_nights = $4, deposit_percentage = $5, max_guests = $6,
+            address_line = $7, legal_forum = $8 where id = $1`,
     [propertyId, original.nightly_rate, original.pix_key, original.min_nights,
-     original.deposit_percentage, original.max_guests]);
+     original.deposit_percentage, original.max_guests, original.address_line,
+     original.legal_forum]);
+  await db.query(`delete from contracts where reservation_id in (
+    select id from reservations where customer_id in (
+      select id from users where email like 'e2e-%'))`);
   const leftover = (await db.query(
     `select count(*)::int as n from reservations r join users u on u.id = r.customer_id where u.email like 'e2e-%'`)).rows[0].n;
   console.log(`  dados de teste removidos (sobras: ${leftover})`);

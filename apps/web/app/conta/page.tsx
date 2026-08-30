@@ -1,78 +1,57 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { api, messageFor } from '@/lib/api';
-import { PAYMENT_LABEL, STATUS_LABEL, brl, shortDate } from '@/lib/format';
+import { api } from '@/lib/api';
+import { CHARGE_STATUS, STATUS_LABEL, brl, longDate } from '@/lib/format';
 import type { ReservationDto, UserDto } from '@/lib/types';
 
-export default function AccountPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<UserDto | null>(null);
-  const [reservations, setReservations] = useState<ReservationDto[]>([]);
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(true);
+type Cobranca = {
+  id: string;
+  amount: string;
+  status: string;
+  rawStatus: string;
+  reservation_id: string;
+  unit_name: string;
+};
 
-  const load = useCallback(async () => {
+const hoje = () => new Date().toISOString().slice(0, 10);
+
+/** Panorama da conta: o que vem a seguir e o que está em aberto. */
+export default function ContaPage() {
+  const [user, setUser] = useState<UserDto | null>(null);
+  const [reservas, setReservas] = useState<ReservationDto[]>([]);
+  const [cobrancas, setCobrancas] = useState<Cobranca[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  const carregar = useCallback(async () => {
     try {
-      const [profile, bookings] = await Promise.all([
+      const [perfil, estadias, pagamentos] = await Promise.all([
         api<{ user: UserDto }>('/api/auth/me'),
-        api<{ reservations: ReservationDto[] }>('/api/reservations/mine')
+        api<{ reservations: ReservationDto[] }>('/api/reservations/mine'),
+        api<{ payments: Cobranca[] }>('/api/me/payments')
       ]);
-      setUser(profile.user);
-      setReservations(bookings.reservations);
+      setUser(perfil.user);
+      setReservas(estadias.reservations);
+      setCobrancas(pagamentos.payments);
     } catch {
       setUser(null);
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void carregar();
+  }, [carregar]);
 
-  async function updateProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setMessage('');
-    try {
-      const result = await api<{ user: UserDto }>('/api/users/me', {
-        method: 'PATCH',
-        body: {
-          fullName: form.get('fullName'),
-          phone: form.get('phone') || null,
-          documentNumber: form.get('documentNumber') || null
-        }
-      });
-      setUser(result.user);
-      setMessage('Perfil atualizado.');
-    } catch (error) {
-      setMessage(messageFor(error));
-    }
-  }
-
-  async function logout() {
-    try {
-      await api('/api/auth/logout', { method: 'POST' });
-    } finally {
-      router.push('/');
-    }
-  }
-
-  if (loading) {
-    return (
-      <main className="account">
-        <p>Carregando sua conta...</p>
-      </main>
-    );
-  }
+  if (carregando) return <p>Carregando sua conta...</p>;
 
   if (!user) {
     return (
-      <main className="account">
-        <p>Entre para acessar sua conta.</p>
+      <>
+        <p className="eyebrow">Área do hóspede</p>
+        <h1>Entre para continuar.</h1>
         <div className="row-actions">
           <Link className="button" href="/login">
             Entrar
@@ -81,82 +60,95 @@ export default function AccountPage() {
             Criar conta
           </Link>
         </div>
-      </main>
+      </>
     );
   }
 
+  const proxima = reservas
+    .filter((r) => r.check_in >= hoje() && r.status !== 'CANCELLED')
+    .sort((a, b) => a.check_in.localeCompare(b.check_in))[0];
+  const aberto = cobrancas.filter((c) => ['PENDING', 'PROCESSING', 'OVERDUE'].includes(c.status));
+  const pendencia = !user.document_number || !user.rg || !user.address_line;
+
   return (
-    <main className="account">
-      <Link className="back-link" href="/">
-        ← Voltar
-      </Link>
-      <p className="eyebrow">Área do hóspede</p>
-      <h1>Olá, {user.full_name.split(' ')[0]}.</h1>
+    <>
+      <header className="admin-head">
+        <div>
+          <p className="eyebrow">Minha conta</p>
+          <h1>Olá, {user.full_name.split(' ')[0]}.</h1>
+        </div>
+      </header>
+
+      {pendencia && (
+        <p className="feedback">
+          Faltam seus dados para o contrato.{' '}
+          <Link href="/conta/configuracoes">Completar agora</Link>
+        </p>
+      )}
 
       <div className="account-grid">
-        <form className="panel" onSubmit={updateProfile}>
-          <h2>Seu perfil</h2>
-          <label>
-            Nome completo
-            <input name="fullName" defaultValue={user.full_name} required minLength={3} />
-          </label>
-          <label>
-            E-mail
-            <input value={user.email} disabled />
-          </label>
-          <label>
-            Telefone
-            <input name="phone" defaultValue={user.phone ?? ''} maxLength={32} />
-          </label>
-          <label>
-            Documento
-            <input name="documentNumber" defaultValue={user.document_number ?? ''} maxLength={32} />
-          </label>
-          <button className="button" type="submit">
-            Salvar perfil
-          </button>
-          <button className="link" type="button" onClick={() => void logout()}>
-            Sair da conta
-          </button>
-        </form>
-
         <section className="panel">
-          <h2>Suas reservas</h2>
-          {reservations.length ? (
-            reservations.map((reservation) => {
-              const payable =
-                reservation.status === 'PENDING_PAYMENT' && reservation.payment_status !== 'PAID';
-              return (
-                <article className="booking" key={reservation.id}>
-                  <strong>
-                    <i
-                      className="unit-dot"
-                      style={{ background: reservation.unit_color ?? '#1F3A5F' }}
-                    />
-                    {reservation.unit_name ?? 'Reserva'} · {shortDate(reservation.check_in)} →{' '}
-                    {shortDate(reservation.check_out)}
-                  </strong>
-                  <span>
-                    {STATUS_LABEL[reservation.status] ?? reservation.status} ·{' '}
-                    {PAYMENT_LABEL[reservation.payment_status] ?? reservation.payment_status}
-                  </span>
-                  <b>{brl(reservation.total_amount)}</b>
-                  {payable && (
-                    <Link className="button small" href={`/reserva/${reservation.id}`}>
-                      Pagar sinal
-                    </Link>
-                  )}
-                </article>
-              );
-            })
+          <h2>Próxima estadia</h2>
+          {proxima ? (
+            <>
+              <dl className="facts stacked">
+                <div>
+                  <dt>Espaço</dt>
+                  <dd>{proxima.unit_name ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Entrada</dt>
+                  <dd>{longDate(proxima.check_in)} a partir das 09:00</dd>
+                </div>
+                <div>
+                  <dt>Saída</dt>
+                  <dd>{longDate(proxima.check_out)} até as 16:00</dd>
+                </div>
+                <div>
+                  <dt>Situação</dt>
+                  <dd>{STATUS_LABEL[proxima.status] ?? proxima.status}</dd>
+                </div>
+              </dl>
+              {proxima.status === 'PENDING_PAYMENT' && (
+                <Link className="button" href={`/reserva/${proxima.id}`}>
+                  Continuar reserva
+                </Link>
+              )}
+            </>
           ) : (
-            <p>
-              Nenhuma reserva ainda. <Link href="/#reserva">Consultar datas</Link>
+            <p className="hint">
+              Nenhuma estadia marcada. <Link href="/#reserva">Consultar datas</Link>
             </p>
           )}
         </section>
+
+        <section className="panel">
+          <h2>Em aberto</h2>
+          {aberto.length ? (
+            <div className="stay-list">
+              {aberto.map((cobranca) => (
+                <article className="stay" key={cobranca.id}>
+                  <div>
+                    <strong>{cobranca.unit_name}</strong>
+                    <small>{CHARGE_STATUS[cobranca.status]?.label ?? cobranca.status}</small>
+                  </div>
+                  <div className="stay-side">
+                    <b>{brl(cobranca.amount)}</b>
+                    <Link className="button small" href={`/reserva/${cobranca.reservation_id}`}>
+                      Pagar
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">Nada pendente.</p>
+          )}
+          <Link className="link" href="/conta/pagamentos">
+            Ver todos os pagamentos
+          </Link>
+        </section>
       </div>
-      {message && <p className="feedback">{message}</p>}
-    </main>
+    </>
   );
 }

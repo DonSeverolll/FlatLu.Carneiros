@@ -26,6 +26,26 @@ describe('nightsBetween', () => {
     expect(nightsBetween('2026-12-30', '2027-01-02')).toBe(3);
   });
 
+  it('acerta na virada entre meses de tamanhos diferentes', () => {
+    // O caso que escapou: com o mês em base errada, junho (30 dias) virava
+    // julho (31) e a conta ganhava uma noite. Dezembro→janeiro passava por
+    // acaso, porque os dois têm 31 dias.
+    expect(nightsBetween('2027-06-28', '2027-07-01')).toBe(3);
+    expect(nightsBetween('2026-01-30', '2026-02-02')).toBe(3);
+    expect(nightsBetween('2026-02-27', '2026-03-02')).toBe(3);
+    expect(nightsBetween('2028-02-27', '2028-03-01')).toBe(3);
+    expect(nightsBetween('2026-04-29', '2026-05-02')).toBe(3);
+  });
+
+  it('a soma de noites bate com a contagem dia a dia, mês a mês', () => {
+    // Varre um ano inteiro comparando com a contagem por iteração.
+    for (let mes = 1; mes <= 12; mes += 1) {
+      const inicio = `2027-${String(mes).padStart(2, '0')}-27`;
+      const fim = addDaysIso(inicio, 5);
+      expect(nightsBetween(inicio, fim)).toBe(5);
+    }
+  });
+
   it('não é afetado por horário de verão (não há float de fuso no cálculo)', () => {
     expect(nightsBetween('2026-10-17', '2026-10-19')).toBe(2);
   });

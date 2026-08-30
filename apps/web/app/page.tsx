@@ -42,7 +42,6 @@ export default async function HomePage() {
         <strong>APT CARNEIROS · FLAT &amp; CASA</strong>
         <span className="nav-links">
           <a href="#reserva">Consultar datas</a>
-          <Link href="/conta">Minha conta</Link>
         </span>
       </nav>
 

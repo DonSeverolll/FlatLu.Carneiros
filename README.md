@@ -226,6 +226,66 @@ vez de escolher um preço em silêncio.
 Toda reserva guarda o extrato do cálculo em `reservations.rate_breakdown`, então
 uma reserva antiga continua explicável depois que a tabela mudar.
 
+## Painel administrativo
+
+`/admin`, com sidebar de seis seções:
+
+| Seção | O que faz |
+|---|---|
+| **Menu** | Tarifas, sinal, chave Pix, capacidade e bloqueios, por espaço |
+| **Dashboard** | Recebido, a receber, ocupação, diária média, conversão, série temporal e o que exige ação |
+| **CRM** | Funil por estágio, próxima ação com data, histórico de contatos |
+| **Clientes** | Busca, estadias, pagamentos, total pago, ficha completa e anotações |
+| **Agenda** | Chegadas e saídas, observação interna, pedido do hóspede, registro de check-in/out |
+| **Usuários** | Papel, situação, edição de cadastro e redefinição de senha |
+
+O CRM é alimentado sozinho: reserva feita no site abre um card, e o estágio
+acompanha o que aconteceu de fato (contrato assinado → Negociando; sinal pago →
+Fechado; hold expirado → Perdido). Funil mantido à mão mente em duas semanas.
+
+Sobre os gráficos: dinheiro e contagem nunca dividem um eixo — são gráficos
+separados. A comparação entre espaços é tabela com barra, não gráfico
+categórico: as cores das unidades reprovaram na validação de paleta (escuras e
+dessaturadas demais para servirem de marca de gráfico), então a identidade fica
+no rótulo e a cor só reforça.
+
+## Área do hóspede
+
+Depois do cadastro, uma gaveta acessível de qualquer página do site: foto,
+Pagamentos, Histórico e Configurações, com sair no rodapé.
+
+- **Pagamentos** — extrato com situação por cobrança: Pendente, Processando,
+  Aprovado, Negado, Em atraso e Cancelado. "Em atraso" é derivado do
+  vencimento, não gravado: como estado, ficaria errado entre varreduras.
+- **Histórico** — estadias passadas e futuras com entrada, saída e situação.
+- **Configurações** — perfil, foto, qualificação para o contrato e troca de
+  senha.
+
+## Contrato
+
+Depois do aceite dos termos, a reserva segue em três passos: qualificação →
+contrato → pagamento. A ordem é a do próprio instrumento, cuja Cláusula Quarta
+condiciona a reserva à aprovação da entrada — o servidor recusa cobrança sem
+contrato assinado.
+
+O modelo fica em `contract_templates`, versionado, com as partes variáveis como
+marcadores. Um marcador sem valor **recusa a emissão**: contrato com "residente
+na , /, CEP" é pior que contrato nenhum. O texto é congelado na emissão, então
+mudar o modelo depois não altera o que já foi assinado.
+
+A assinatura é **eletrônica simples** (art. 4º, I, da Lei 14.063/2020): nome e
+CPF conferidos contra o cadastro, IP, user-agent, instante e hash SHA-256 que
+amarra texto, signatário e momento. **Não é ICP-Brasil nem Gov.br** — para esse
+nível, exporte o PDF e assine lá; o campo `external_url` do registro existe para
+guardar o retorno.
+
+## Pagamento
+
+Pix funciona sem intermediário (BR Code estático com valor e identificador
+fixos). Cartão passa pelo Mercado Pago: o adaptador está pronto e só falta a
+credencial em `MERCADOPAGO_ACCESS_TOKEN`. Sem ela, a rota recusa com erro
+explícito em vez de simular sucesso.
+
 ## Teste de fumaça
 
 `npm run test` cobre a lógica pura. O que só quebra com um banco do outro lado
@@ -236,7 +296,7 @@ precisa do teste de fumaça:
 BASE=http://localhost:3000 SMOKE_CONFIRM=1 npm run db:smoke
 ```
 
-São 48 verificações do fluxo inteiro. Ele cria usuários `e2e-*@teste.local`,
+São 79 verificações do fluxo inteiro. Ele cria usuários `e2e-*@teste.local`,
 faz reservas e **altera a diária e a chave Pix da propriedade**, restaurando
 tudo no final — por isso a confirmação explícita. Não rode contra produção em
 horário de venda.
