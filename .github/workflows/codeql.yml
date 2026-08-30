@@ -1,0 +1,37 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Segunda de manhã: vulnerabilidade nova em regra do CodeQL aparece sem
+    # depender de alguém ter feito push naquela semana.
+    - cron: '0 9 * * 1'
+
+jobs:
+  analyze:
+    name: Analisar JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # security-extended vai além do conjunto padrão: pega injeção de SQL
+          # montada por concatenação, redirecionamento aberto e afins, que é
+          # exatamente o risco de um app que fala direto com PostgreSQL.
+          queries: security-extended
+
+      - name: Analisar
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

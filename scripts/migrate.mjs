@@ -27,9 +27,22 @@ if (!databaseUrl) {
  * 5432 do mesmo host em vez de arriscar comportamento estranho de pgbouncer.
  */
 function sessionModeUrl(url) {
-  if (!url.includes('.pooler.supabase.com:6543')) return url;
+  // Comparar host e porta de verdade, em vez de procurar a substring na URL
+  // inteira: o texto ".pooler.supabase.com:6543" poderia aparecer na senha ou
+  // num parâmetro e o replace corromperia a string de conexão.
+  let alvo;
+  try {
+    alvo = new URL(url);
+  } catch {
+    return url;
+  }
+  const ehPooler = alvo.hostname === 'pooler.supabase.com'
+    || alvo.hostname.endsWith('.pooler.supabase.com');
+  if (!ehPooler || alvo.port !== '6543') return url;
+
+  alvo.port = '5432';
   console.log('Pooler em modo transacao detectado; migrando pela porta 5432 (modo sessao).');
-  return url.replace('.pooler.supabase.com:6543', '.pooler.supabase.com:5432');
+  return alvo.toString();
 }
 
 const client = new pg.Client({

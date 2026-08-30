@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Atualização de patch em lote: uma dúzia de PRs por semana faz todo
+      # mundo parar de olhar, que é o pior resultado possível.
+      patches:
+        update-types: [patch]
+    labels: [dependencias]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencias, ci]
+
+  # O serviço Java está fora do deploy, mas continua no repositório e suas
+  # dependências também envelhecem.
+  - package-ecosystem: maven
+    directory: /apps/auth-service
+    schedule:
+      interval: monthly
+    labels: [dependencias, java]
