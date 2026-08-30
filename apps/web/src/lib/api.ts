@@ -92,7 +92,39 @@ const MESSAGES: Record<string, string> = {
   REFRESH_RACE: 'Sessão sendo renovada. Tente de novo em instantes.',
   REFRESH_TOKEN_REUSED: 'Sua sessão foi encerrada por segurança. Entre novamente.',
   SESSION_EXPIRED: 'Sua sessão expirou. Entre novamente.',
-  INTERNAL_ERROR: 'Algo deu errado do nosso lado. Tente novamente.'
+  INTERNAL_ERROR: 'Algo deu errado do nosso lado. Tente novamente.',
+
+  // Pagamento
+  PAYMENT_PROVIDER_NOT_CONFIGURED:
+    'Pagamento com cartão ainda não está disponível. Use o Pix ou fale com o anfitrião.',
+  PAYMENT_PROVIDER_ERROR:
+    'O provedor de pagamento não respondeu. Tente em instantes ou pague por Pix.',
+  DEPOSIT_NOT_PAID: 'O sinal precisa ser pago antes do saldo.',
+  NOTHING_TO_CHARGE: 'Não há valor a cobrar nesta reserva.',
+
+  // Contrato
+  CONTRACT_NOT_SIGNED: 'Assine o contrato antes de seguir para o pagamento.',
+  CONTRACT_NOT_FOUND: 'Contrato não encontrado.',
+  CONTRACT_TEMPLATE_MISSING: 'Nenhum modelo de contrato ativo. Fale com o anfitrião.',
+  CUSTOMER_DATA_INCOMPLETE: 'Complete seus dados para gerar o contrato.',
+  CONTRACT_VARIABLES_MISSING: 'Faltam dados para gerar o contrato. Fale com o anfitrião.',
+  PROPERTY_ADDRESS_MISSING:
+    'O endereço deste espaço ainda não foi cadastrado, então o contrato não pode ser emitido.',
+  RESERVATION_NOT_CONTRACTABLE: 'Esta reserva não está mais aberta.',
+  SIGNER_NAME_MISMATCH: 'O nome digitado precisa ser igual ao do seu cadastro.',
+  SIGNER_CPF_MISMATCH: 'O CPF digitado precisa ser igual ao do seu cadastro.',
+
+  // Conta e painel
+  CURRENT_PASSWORD_INVALID: 'Senha atual incorreta.',
+  CANNOT_DEMOTE_SELF: 'Você não pode rebaixar nem suspender a própria conta.',
+  USERNAME_ALREADY_TAKEN: 'Este nome de usuário já está em uso.',
+  USERNAME_INVALID: 'Use de 3 a 80 caracteres: letras, números ou _.',
+  USER_NOT_FOUND: 'Usuário não encontrado.',
+  CUSTOMER_NOT_FOUND: 'Cliente não encontrado.',
+  LEAD_NOT_FOUND: 'Card não encontrado.',
+  RATE_PERIOD_NOT_FOUND: 'Período não encontrado.',
+  PERIOD_OVERLAPS_EXISTING:
+    'Já existe um período ativo com essa prioridade nessas datas.'
 };
 
 export function messageFor(error: unknown): string {

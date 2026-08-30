@@ -44,15 +44,18 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
   const [copiado, setCopiado] = useState(false);
   const [metodo, setMetodo] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
   const [parcelas, setParcelas] = useState(1);
+  const [formas, setFormas] = useState<{ pix: boolean; card: boolean } | null>(null);
 
   const carregar = useCallback(async () => {
     try {
-      const [contrato, perfil] = await Promise.all([
+      const [contrato, perfil, metodos] = await Promise.all([
         api<EstadoContrato>(`/api/reservations/${reservationId}/contract`),
-        api<{ user: UserDto }>('/api/auth/me')
+        api<{ user: UserDto }>('/api/auth/me'),
+        api<{ pix: boolean; card: boolean }>(`/api/reservations/${reservationId}/payment-methods`)
       ]);
       setEstado(contrato);
       setUser(perfil.user);
+      setFormas(metodos);
 
       if (contrato.missingCustomerData.length) setPasso('dados');
       else if (contrato.contractStatus !== 'SIGNED') setPasso('contrato');
@@ -102,8 +105,8 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
   }, [reservationId, metodo, parcelas]);
 
   useEffect(() => {
-    if (passo === 'pagamento' && metodo === 'PIX' && !intent) void gerarCobranca();
-  }, [passo, metodo, intent, gerarCobranca]);
+    if (passo === 'pagamento' && metodo === 'PIX' && !intent && formas?.pix) void gerarCobranca();
+  }, [passo, metodo, intent, formas, gerarCobranca]);
 
   async function salvarDados(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -345,21 +348,37 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
           <section className="panel">
             <h2>Como você quer pagar</h2>
             <div className="unit-filter">
-              <button
-                className={metodo === 'PIX' ? 'unit-tab on' : 'unit-tab'}
-                onClick={() => { setMetodo('PIX'); setIntent(null); }}
-                type="button"
-              >
-                Pix
-              </button>
-              <button
-                className={metodo === 'CREDIT_CARD' ? 'unit-tab on' : 'unit-tab'}
-                onClick={() => { setMetodo('CREDIT_CARD'); setIntent(null); }}
-                type="button"
-              >
-                Cartão de crédito
-              </button>
+              {formas?.pix !== false && (
+                <button
+                  className={metodo === 'PIX' ? 'unit-tab on' : 'unit-tab'}
+                  onClick={() => { setMetodo('PIX'); setIntent(null); }}
+                  type="button"
+                >
+                  Pix
+                </button>
+              )}
+              {formas?.card && (
+                <button
+                  className={metodo === 'CREDIT_CARD' ? 'unit-tab on' : 'unit-tab'}
+                  onClick={() => { setMetodo('CREDIT_CARD'); setIntent(null); }}
+                  type="button"
+                >
+                  Cartão de crédito
+                </button>
+              )}
             </div>
+
+            {formas && !formas.card && (
+              <p className="hint">
+                No momento aceitamos apenas Pix. O pagamento com cartão está sendo habilitado.
+              </p>
+            )}
+            {formas && !formas.pix && (
+              <p className="feedback">
+                O pagamento deste espaço ainda não foi configurado. Fale com o anfitrião para
+                combinar a forma de pagamento — sua reserva continua guardada.
+              </p>
+            )}
 
             {metodo === 'CREDIT_CARD' && (
               <>
