@@ -16,8 +16,7 @@
     "db:smoke": "node --env-file-if-exists=apps/web/.env.local scripts/smoke.mjs"
   },
   "allowScripts": {
-    "esbuild@0.21.5": true,
-    "sharp@0.34.5": true
+    "esbuild@0.28.2": true
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
