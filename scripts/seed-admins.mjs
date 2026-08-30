@@ -54,9 +54,10 @@ if (!admins.length) {
 for (const admin of admins) {
   if (admin.password.length < MIN_PASSWORD) {
     if (!ALLOW_WEAK) {
-      console.error(
-        `Senha de ${admin.username} tem ${admin.password.length} caracteres; o minimo e ${MIN_PASSWORD}.`
-      );
+      // Nada derivado da senha vai para a saida, nem o tamanho: o log de um
+      // script de provisionamento costuma acabar em arquivo ou no histórico
+      // do shell, e o tamanho já estreita a busca de quem for tentar.
+      console.error(`Senha de ${admin.username} e curta demais: o minimo e ${MIN_PASSWORD} caracteres.`);
       console.error('Use ALLOW_WEAK_ADMIN_PASSWORD=1 para assumir o risco conscientemente.');
       process.exit(1);
     }
@@ -64,9 +65,7 @@ for (const admin of admins) {
       console.error(`Senha de ${admin.username} abaixo do piso absoluto de ${HARD_FLOOR} caracteres.`);
       process.exit(1);
     }
-    console.warn(
-      `AVISO: senha de ${admin.username} tem ${admin.password.length} caracteres, abaixo do minimo de ${MIN_PASSWORD}.`
-    );
+    console.warn(`AVISO: senha de ${admin.username} esta abaixo do minimo de ${MIN_PASSWORD} caracteres.`);
   }
   if (!/^[A-Za-z0-9_]{3,80}$/.test(admin.username)) {
     // Mesma regra da constraint users_username_format: falha aqui é mais
