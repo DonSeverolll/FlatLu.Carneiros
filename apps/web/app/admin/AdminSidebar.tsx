@@ -12,8 +12,9 @@ const ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard', hint: 'Vendas e ocupação' },
   { href: '/admin/crm', label: 'CRM', hint: 'Funil de oportunidades' },
   { href: '/admin/clientes', label: 'Clientes', hint: 'Histórico e pagamentos' },
-  { href: '/admin/agenda', label: 'Agenda', hint: 'Chegadas e saídas' },
-  { href: '/admin/usuarios', label: 'Usuários', hint: 'Acessos e senhas' }
+  { href: '/admin/agenda', label: 'Agenda', hint: 'Chegadas, saídas e bloqueios' },
+  { href: '/admin/usuarios', label: 'Usuários', hint: 'Acessos e senhas' },
+  { href: '/admin/log', label: 'Log', hint: 'Tudo que aconteceu no site' }
 ];
 
 export default function AdminSidebar({ units }: { units: Unit[] }) {

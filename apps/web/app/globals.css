@@ -364,3 +364,35 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .stepper .now span { background: var(--coral); color: #fff; }
 .stepper .done span { background: #2E6F4E; color: #fff; }
 .contract-body { background: var(--sand); border: 1px solid rgba(23,63,69,.16); font-family: 'DM Sans', sans-serif; font-size: 13px; line-height: 1.75; margin-top: 16px; max-height: 460px; overflow-y: auto; padding: 26px; white-space: pre-wrap; }
+
+/* Datas bloqueadas e períodos especiais, na Agenda */
+.date-list { display: grid; gap: 6px; margin-top: 18px; }
+.date-row { align-items: center; background: #fffaf2; border-left: 3px solid; display: grid; gap: 14px; grid-template-columns: 120px 1fr auto; padding: 13px 16px; }
+.date-row.blocked { background: rgba(179,38,30,.05); }
+.date-row.released { background: transparent; opacity: .62; }
+.date-when strong { display: block; font-size: 15px; }
+.date-when small, .date-main small { color: var(--muted); display: block; font-size: 12px; line-height: 1.5; }
+.date-main strong { font-size: 15px; }
+.date-warn { color: #8C1D18 !important; font-weight: 500; }
+.date-side { align-items: flex-end; display: flex; flex-direction: column; gap: 6px; }
+.date-side .hint { font-size: 11px; margin: 0; text-align: right; }
+.inline-check { align-items: center; color: var(--muted); display: flex; font-size: 13px; gap: 7px; margin: 0; }
+.inline-check input { margin: 0; width: auto; }
+
+/* Log de eventos */
+.log-list { display: grid; gap: 2px; list-style: none; margin: 18px 0 0; padding: 0; }
+.log-item { display: grid; gap: 16px; grid-template-columns: 128px 1fr; padding: 12px 6px; }
+.log-item + .log-item { border-top: 1px solid rgba(23,63,69,.1); }
+.log-when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 3px; }
+.log-what { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; margin: 0; }
+.log-what strong { font-size: 14px; }
+.log-role { background: rgba(23,63,69,.1); color: var(--muted); font-size: 10px; letter-spacing: .06em; padding: 3px 6px; text-transform: uppercase; }
+.log-target { color: var(--muted); font-size: 13px; margin: 3px 0 0; }
+.log-meta { color: var(--muted); font-size: 12px; margin: 4px 0 0; word-break: break-word; }
+
+@media (max-width: 720px) {
+  .date-row { grid-template-columns: 1fr; }
+  .date-side { align-items: flex-start; flex-direction: row; }
+  .date-side .hint { text-align: left; }
+  .log-item { gap: 4px; grid-template-columns: 1fr; }
+}

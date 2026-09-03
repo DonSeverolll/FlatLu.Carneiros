@@ -274,7 +274,16 @@ try {
    * nem a véspera do check-in, nem o dia do check-out.
    */
   const antes = (await a.call('/api/properties/flat-praia-de-carneiros/availability')).json?.unavailable ?? [];
-  check('estadia de 3 noites consome exatamente 3 noites', antes.length === 3, `${antes.length}: ${antes.join(', ')}`);
+  /**
+   * Conta só as noites da janela deste teste. Contar a lista inteira dava
+   * falso negativo assim que a operação real criou um bloqueio de manutenção
+   * ou de uso do proprietário em qualquer outra data do calendário.
+   */
+  const janela = [checkIn, addDays(checkIn, 1), addDays(checkIn, 2)];
+  const consumidas = antes.filter((noite) => janela.includes(noite));
+  check('estadia de 3 noites consome exatamente 3 noites',
+    consumidas.length === 3 && !antes.includes(addDays(checkIn, 3)),
+    `${consumidas.length} na janela; dia da saída ${antes.includes(addDays(checkIn, 3)) ? 'BLOQUEADO' : 'livre'}`);
   check('o dia do check-out continua vendável', !antes.includes(checkOut),
     `${checkOut} ${antes.includes(checkOut) ? 'BLOQUEADO' : 'livre'}`);
   check('a véspera do check-in continua vendável', !antes.includes(addDays(checkIn, -1)),

@@ -104,3 +104,79 @@ export function shiftMonth(year: number, month: number, delta: number) {
   const date = new Date(Date.UTC(year, month - 1 + delta, 1));
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
 }
+
+/** Origem de um bloqueio de datas, como o painel apresenta. */
+export const BLOCK_SOURCE: Record<string, { label: string; tone: 'good' | 'warn' | 'bad' | '' }> = {
+  RESERVATION: { label: 'Reserva', tone: 'good' },
+  MAINTENANCE: { label: 'Manutenção', tone: 'warn' },
+  CLEANING: { label: 'Limpeza', tone: '' },
+  OWNER_USE: { label: 'Uso do proprietário', tone: '' }
+};
+
+/**
+ * Rótulos do log. O que não estiver aqui aparece com o código cru — é
+ * preferível a inventar um nome bonito para um evento que ninguém reconhece.
+ */
+export const AUDIT_LABEL: Record<string, string> = {
+  LOGIN: 'Entrou no sistema',
+  LOGIN_FAILED: 'Tentativa de entrada recusada',
+  LOGOUT: 'Saiu do sistema',
+  USER_REGISTERED: 'Cadastro criado',
+  PASSWORD_CHANGED: 'Senha alterada',
+  PASSWORD_RESET_BY_ADMIN: 'Senha redefinida pelo administrador',
+  UPDATED_BY_ADMIN: 'Dados alterados pelo administrador',
+  CREATED: 'Reserva criada',
+  CANCELLED: 'Reserva cancelada',
+  NOTES_UPDATED: 'Observações alteradas',
+  STAY_CHECK_IN: 'Chegada registrada',
+  STAY_CHECK_OUT: 'Saída registrada',
+  STAY_UNDO: 'Registro de estadia desfeito',
+  PAYMENT_PAID: 'Pagamento total confirmado',
+  PAYMENT_PARTIAL: 'Sinal confirmado',
+  PAYMENT_PROCESSING: 'Pagamento em processamento',
+  PAYMENT_DECLINED: 'Pagamento negado',
+  PAYMENT_FAILED: 'Pagamento falhou',
+  PAYMENT_REFUNDED: 'Pagamento reembolsado',
+  PAYMENT_CANCELLED: 'Pagamento cancelado',
+  SIGNED: 'Contrato assinado',
+  BLOCK_CREATED: 'Datas bloqueadas',
+  BLOCK_RELEASED: 'Bloqueio liberado',
+  RATE_PERIOD_CREATED: 'Período especial criado',
+  RATE_PERIOD_UPDATED: 'Período especial alterado',
+  RATE_PERIOD_DELETED: 'Período especial removido',
+  UPDATED: 'Espaço atualizado'
+};
+
+/** Eventos que merecem destaque visual no log. */
+export const AUDIT_TONE: Record<string, 'good' | 'warn' | 'bad'> = {
+  LOGIN_FAILED: 'bad',
+  PAYMENT_DECLINED: 'bad',
+  PAYMENT_FAILED: 'bad',
+  CANCELLED: 'bad',
+  PAYMENT_REFUNDED: 'warn',
+  PAYMENT_CANCELLED: 'warn',
+  BLOCK_CREATED: 'warn',
+  PASSWORD_RESET_BY_ADMIN: 'warn',
+  BLOCK_RELEASED: 'good',
+  PAYMENT_PAID: 'good',
+  PAYMENT_PARTIAL: 'good',
+  SIGNED: 'good',
+  CREATED: 'good'
+};
+
+export const ENTITY_LABEL: Record<string, string> = {
+  USER: 'Usuário',
+  RESERVATION: 'Reserva',
+  PROPERTY: 'Espaço',
+  CONTRACT: 'Contrato',
+  PAYMENT: 'Pagamento',
+  SESSION: 'Acesso'
+};
+
+/** Data e hora completas, para o log — onde a ordem dos fatos importa. */
+export function dateTime(value: string): string {
+  return new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
