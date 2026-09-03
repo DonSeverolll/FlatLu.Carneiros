@@ -66,6 +66,10 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
 /** Mensagens em português para os códigos que a API devolve. */
 const MESSAGES: Record<string, string> = {
+  BLOCK_NOT_FOUND: 'Bloqueio não encontrado.',
+  BLOCK_ALREADY_RELEASED: 'Este bloqueio já foi liberado.',
+  BLOCK_BELONGS_TO_RESERVATION:
+    'Estas datas estão presas a uma reserva. Cancele a reserva para liberá-las.',
   UNAUTHORIZED: 'Entre na sua conta para continuar.',
   INVALID_CREDENTIALS: 'E-mail ou senha inválidos.',
   EMAIL_ALREADY_REGISTERED: 'Este e-mail já tem conta. Tente entrar.',

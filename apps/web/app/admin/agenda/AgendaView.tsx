@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, messageFor } from '@/lib/api';
-import { PAYMENT_LABEL, STATUS_LABEL, brl, longDate, shortDate } from '@/lib/format';
+import { BLOCK_SOURCE, PAYMENT_LABEL, STATUS_LABEL, brl, longDate, shortDate } from '@/lib/format';
 
 type Reserva = {
   id: string;
@@ -32,6 +32,47 @@ type Reserva = {
 
 type Unidade = { slug: string; shortName: string; color: string };
 
+type Bloqueio = {
+  id: string;
+  source: string;
+  active: boolean;
+  reservation_id: string | null;
+  first_night: string;
+  last_night: string;
+  released_on: string;
+  nights: number;
+  unit_slug: string;
+  unit_name: string;
+  unit_color: string | null;
+  reason: string | null;
+  created_by: string | null;
+  reason_at: string | null;
+  release_reason: string | null;
+  released_by: string | null;
+  released_at: string | null;
+  guest_name: string | null;
+  /** Períodos especiais cobertos por este bloqueio — o alerta que importa. */
+  covers_periods: string[];
+};
+
+type Periodo = {
+  id: string;
+  name: string;
+  first_night: string;
+  last_night: string;
+  nights: number;
+  nightly_amount: string | null;
+  package_amount: string | null;
+  min_nights: number | null;
+  requires_full_period: boolean;
+  active: boolean;
+  unit_slug: string;
+  unit_name: string;
+  unit_color: string | null;
+  /** Noites do período que estão fora de venda. Zero = vendável. */
+  blocked_nights: number;
+};
+
 const JANELAS = [
   { label: 'Próximos 30 dias', de: 0, ate: 30 },
   { label: 'Este mês', de: -15, ate: 45 },
@@ -54,19 +95,31 @@ export default function AgendaView({ units }: { units: Unidade[] }) {
   const [aberta, setAberta] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('Carregando agenda...');
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
+  const [periodos, setPeriodos] = useState<Periodo[]>([]);
+  const [verLiberados, setVerLiberados] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
       const filtro = unidade ? `&unit=${unidade}` : '';
-      const dados = await api<{ reservations: Reserva[] }>(
-        `/api/admin/reservations?from=${iso(janela.de)}&to=${iso(janela.ate)}${filtro}`
-      );
+      // Reservas e datas cadastradas vêm juntas: a agenda só faz sentido
+      // quando mostra o que está vendido E o que está fora de venda.
+      const [dados, calendario] = await Promise.all([
+        api<{ reservations: Reserva[] }>(
+          `/api/admin/reservations?from=${iso(janela.de)}&to=${iso(janela.ate)}${filtro}`
+        ),
+        api<{ blocks: Bloqueio[]; periods: Periodo[] }>(
+          `/api/admin/blocks?history=${verLiberados}${unidade ? `&unit=${unidade}` : ''}`
+        )
+      ]);
       setReservas(dados.reservations);
+      setBloqueios(calendario.blocks);
+      setPeriodos(calendario.periods);
       setMensagem('');
     } catch (error) {
       setMensagem(messageFor(error));
     }
-  }, [janela, unidade]);
+  }, [janela, unidade, verLiberados]);
 
   useEffect(() => {
     void carregar();
@@ -144,6 +197,27 @@ export default function AgendaView({ units }: { units: Unidade[] }) {
     }
   }
 
+  async function liberar(bloqueio: Bloqueio) {
+    const motivo = window.prompt(
+      `Liberar ${bloqueio.unit_name} de ${shortDate(bloqueio.first_night)} a ` +
+        `${shortDate(bloqueio.last_night)}?\n\nMotivo da liberação (mínimo 3 caracteres):`
+    );
+    if (!motivo || motivo.trim().length < 3) return;
+    setOcupado(bloqueio.id);
+    try {
+      await api(`/api/admin/blocks/${bloqueio.id}`, {
+        method: 'DELETE',
+        body: { reason: motivo.trim() }
+      });
+      setMensagem(`Datas de ${bloqueio.unit_name} liberadas para venda.`);
+      await carregar();
+    } catch (error) {
+      setMensagem(messageFor(error));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
   // Chegadas e saídas de hoje ficam no topo: é o que a operação precisa ver
   // antes de qualquer outra coisa.
   const chegamHoje = reservas.filter((r) => r.check_in === hoje() && !r.checked_in_at);
@@ -195,6 +269,153 @@ export default function AgendaView({ units }: { units: Unidade[] }) {
           </div>
         </section>
       )}
+
+      {periodos.length > 0 && (
+        <section className="panel">
+          <div className="admin-heading">
+            <h2>Datas especiais cadastradas</h2>
+          </div>
+          <div className="date-list">
+            {periodos.map((periodo) => {
+              const travado = Number(periodo.blocked_nights) > 0;
+              const total = Number(periodo.nights);
+              const preco = periodo.package_amount
+                ? `pacote ${brl(periodo.package_amount)}`
+                : periodo.nightly_amount
+                  ? `${brl(periodo.nightly_amount)} por noite`
+                  : 'sem tarifa definida';
+              return (
+                <article
+                  className={travado ? 'date-row blocked' : 'date-row'}
+                  key={periodo.id}
+                  style={{ borderLeftColor: periodo.unit_color ?? '#1F3A5F' }}
+                >
+                  <div className="date-when">
+                    <strong>{shortDate(periodo.first_night)}</strong>
+                    <small>até {shortDate(periodo.last_night)}</small>
+                  </div>
+                  <div className="date-main">
+                    <strong>{periodo.name}</strong>
+                    <small>
+                      {periodo.unit_name} · {total} {total === 1 ? 'noite' : 'noites'} · {preco}
+                      {periodo.requires_full_period ? ' · período inteiro' : ''}
+                    </small>
+                    {travado && (
+                      <small className="date-warn">
+                        {Number(periodo.blocked_nights) >= total
+                          ? 'Fora de venda: todas as noites deste período estão bloqueadas.'
+                          : `Fora de venda em parte: ${periodo.blocked_nights} de ${total} noites bloqueadas.`}
+                      </small>
+                    )}
+                  </div>
+                  <div className="date-side">
+                    {!periodo.active ? (
+                      <em className="tag">inativo</em>
+                    ) : travado ? (
+                      <em className="tag bad">não vende</em>
+                    ) : (
+                      <em className="tag good">à venda</em>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <p className="hint">
+            Um período especial só aparece para o hóspede se as noites dele estiverem livres.
+            Bloqueio manual sempre vence a tarifa.
+          </p>
+        </section>
+      )}
+
+      <section className="panel">
+        <div className="admin-heading">
+          <h2>
+            {bloqueios.filter((b) => b.active).length} bloqueio(s) de datas
+          </h2>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={verLiberados}
+              onChange={(e) => setVerLiberados(e.target.checked)}
+            />
+            Mostrar já liberados
+          </label>
+        </div>
+
+        {bloqueios.length ? (
+          <div className="date-list">
+            {bloqueios.map((bloqueio) => {
+              const origem = BLOCK_SOURCE[bloqueio.source] ?? { label: bloqueio.source, tone: '' };
+              const daReserva = bloqueio.source === 'RESERVATION';
+              return (
+                <article
+                  className={bloqueio.active ? 'date-row' : 'date-row released'}
+                  key={bloqueio.id}
+                  style={{ borderLeftColor: bloqueio.unit_color ?? '#1F3A5F' }}
+                >
+                  <div className="date-when">
+                    <strong>{shortDate(bloqueio.first_night)}</strong>
+                    <small>até {shortDate(bloqueio.last_night)}</small>
+                  </div>
+                  <div className="date-main">
+                    <strong>{bloqueio.unit_name}</strong>
+                    <small>
+                      {bloqueio.nights} {Number(bloqueio.nights) === 1 ? 'noite' : 'noites'}
+                      {bloqueio.reason ? ` · ${bloqueio.reason}` : ''}
+                      {daReserva && bloqueio.guest_name ? ` · ${bloqueio.guest_name}` : ''}
+                    </small>
+                    {bloqueio.created_by && (
+                      <small>
+                        Bloqueado por {bloqueio.created_by}
+                        {bloqueio.reason_at
+                          ? ` em ${new Date(bloqueio.reason_at).toLocaleDateString('pt-BR')}`
+                          : ''}
+                      </small>
+                    )}
+                    {bloqueio.covers_periods.length > 0 && bloqueio.active && (
+                      <small className="date-warn">
+                        Este bloqueio cobre {bloqueio.covers_periods.join(', ')} — enquanto ele
+                        existir, esse período não é vendido.
+                      </small>
+                    )}
+                    {!bloqueio.active && bloqueio.released_by && (
+                      <small>
+                        Liberado por {bloqueio.released_by}
+                        {bloqueio.release_reason ? ` · ${bloqueio.release_reason}` : ''}
+                      </small>
+                    )}
+                  </div>
+                  <div className="date-side">
+                    <em className={origem.tone ? `tag ${origem.tone}` : 'tag'}>{origem.label}</em>
+                    {bloqueio.active ? (
+                      daReserva ? (
+                        <small className="hint">Sai ao cancelar a reserva</small>
+                      ) : (
+                        <button
+                          className="text-button"
+                          type="button"
+                          disabled={ocupado === bloqueio.id}
+                          onClick={() => void liberar(bloqueio)}
+                        >
+                          {ocupado === bloqueio.id ? 'Liberando...' : 'Tirar bloqueio'}
+                        </button>
+                      )
+                    ) : (
+                      <em className="tag good">liberado</em>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="hint">
+            Nenhuma data bloqueada{unidade ? ' neste espaço' : ''}. Para bloquear, use o{' '}
+            <a href="/admin">Menu</a>.
+          </p>
+        )}
+      </section>
 
       <section className="panel">
         <div className="admin-heading">

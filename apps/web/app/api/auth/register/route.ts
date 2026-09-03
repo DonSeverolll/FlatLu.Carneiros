@@ -1,3 +1,4 @@
+import { recordAudit } from '@/server/audit';
 import { startSession } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { requestContext } from '@/server/request';
@@ -18,6 +19,13 @@ export async function POST(request: Request) {
       const user = await registerUser(input);
       await startSession(user.id, user.role, context);
       await recordAttempt('register', context.ip ?? 'unknown', true);
+      await recordAudit({
+        actorUserId: user.id,
+        entityType: 'USER',
+        entityId: user.id,
+        eventType: 'USER_REGISTERED',
+        metadata: { email: user.email, ip: context.ip ?? null }
+      });
       return json({ user }, 201);
     } catch (error) {
       await recordAttempt('register', context.ip ?? 'unknown', false);
