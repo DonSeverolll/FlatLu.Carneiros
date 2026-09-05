@@ -5,6 +5,7 @@ import { api, messageFor } from '@/lib/api';
 import { CRM_STAGE, brl, shortDate } from '@/lib/format';
 
 type Lead = {
+  archived_at?: string | null;
   id: string;
   name: string;
   email: string | null;
@@ -48,22 +49,80 @@ export default function CrmView() {
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [mensagem, setMensagem] = useState('Carregando funil...');
   const [ocupado, setOcupado] = useState(false);
+  const [verArquivados, setVerArquivados] = useState(false);
+  const [arquivados, setArquivados] = useState(0);
 
   const carregar = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (soAtrasados) params.set('overdueOnly', 'true');
       if (busca.trim()) params.set('search', busca.trim());
-      const dados = await api<{ leads: Lead[]; byStage: typeof porEstagio }>(
-        `/api/admin/crm/leads?${params.toString()}`
-      );
+      if (verArquivados) params.set('includeArchived', 'true');
+      const dados = await api<{
+        leads: Lead[];
+        byStage: typeof porEstagio;
+        archivedCount: number;
+      }>(`/api/admin/crm/leads?${params.toString()}`);
       setLeads(dados.leads);
       setPorEstagio(dados.byStage);
+      setArquivados(dados.archivedCount ?? 0);
       setMensagem('');
     } catch (error) {
       setMensagem(messageFor(error));
     }
-  }, [soAtrasados, busca]);
+  }, [soAtrasados, busca, verArquivados]);
+
+  /** Tira um card encerrado do quadro. O lead continua no banco. */
+  async function arquivar(lead: Lead) {
+    setOcupado(true);
+    try {
+      await api(`/api/admin/crm/leads/${lead.id}/archive`, { method: 'POST' });
+      setMensagem(`${lead.name} saiu do quadro.`);
+      await carregar();
+    } catch (error) {
+      setMensagem(messageFor(error));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function desarquivar(lead: Lead) {
+    setOcupado(true);
+    try {
+      await api(`/api/admin/crm/leads/${lead.id}/archive`, { method: 'DELETE' });
+      setMensagem(`${lead.name} voltou ao quadro.`);
+      await carregar();
+    } catch (error) {
+      setMensagem(messageFor(error));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  /** Esvazia a coluna inteira — a faxina de Fechado e Perdido é feita em bloco. */
+  async function limparColuna(estagio: 'WON' | 'LOST', quantos: number) {
+    const rotulo = CRM_STAGE[estagio] ?? estagio;
+    if (!window.confirm(
+      `Tirar ${quantos} card(s) de ${rotulo} do quadro?
+
+` +
+      'Eles não são apagados: continuam no histórico e podem voltar ' +
+      'marcando "Ver arquivados".'
+    )) return;
+    setOcupado(true);
+    try {
+      const r = await api<{ archived: number }>('/api/admin/crm/leads/archive', {
+        method: 'POST',
+        body: { stage: estagio }
+      });
+      setMensagem(`${r.archived} card(s) de ${rotulo} saíram do quadro.`);
+      await carregar();
+    } catch (error) {
+      setMensagem(messageFor(error));
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   useEffect(() => {
     void carregar();
@@ -178,6 +237,15 @@ export default function CrmView() {
           >
             Atrasados {atrasados > 0 ? `(${atrasados})` : ''}
           </button>
+          {(arquivados > 0 || verArquivados) && (
+            <button
+              className={verArquivados ? 'chip on' : 'chip'}
+              onClick={() => setVerArquivados((v) => !v)}
+              type="button"
+            >
+              Arquivados ({arquivados})
+            </button>
+          )}
         </div>
       </header>
 
@@ -197,14 +265,35 @@ export default function CrmView() {
       <div className="kanban">
         {ORDEM.map((estagio) => {
           const doEstagio = leads.filter((l) => l.stage === estagio);
+          const encerrado = estagio === 'WON' || estagio === 'LOST';
           return (
             <section className="kanban-col" key={estagio}>
               <h2>
                 {CRM_STAGE[estagio] ?? estagio} <small>{doEstagio.length}</small>
+                {encerrado && doEstagio.some((l) => !l.archived_at) && (
+                  <button
+                    className="text-button quiet col-clear"
+                    disabled={ocupado}
+                    onClick={() =>
+                      void limparColuna(
+                        estagio as 'WON' | 'LOST',
+                        doEstagio.filter((l) => !l.archived_at).length
+                      )
+                    }
+                    title="Tirar todos do quadro"
+                    type="button"
+                  >
+                    Limpar
+                  </button>
+                )}
               </h2>
               {doEstagio.map((lead) => (
                 <article
-                  className={lead.atrasado ? 'lead-card late' : 'lead-card'}
+                  className={[
+                    'lead-card',
+                    lead.atrasado ? 'late' : '',
+                    lead.archived_at ? 'archived' : ''
+                  ].filter(Boolean).join(' ')}
                   key={lead.id}
                   style={{ borderLeftColor: lead.unidade_cor ?? '#587276' }}
                 >
@@ -242,6 +331,27 @@ export default function CrmView() {
                     <button className="text-button" onClick={() => void definirProximaAcao(lead)} type="button">
                       Próxima ação
                     </button>
+                    {encerrado &&
+                      (lead.archived_at ? (
+                        <button
+                          className="text-button quiet"
+                          disabled={ocupado}
+                          onClick={() => void desarquivar(lead)}
+                          type="button"
+                        >
+                          Devolver ao quadro
+                        </button>
+                      ) : (
+                        <button
+                          className="text-button quiet"
+                          disabled={ocupado}
+                          onClick={() => void arquivar(lead)}
+                          title="Tirar do quadro sem apagar"
+                          type="button"
+                        >
+                          Remover
+                        </button>
+                      ))}
                   </div>
                 </article>
               ))}

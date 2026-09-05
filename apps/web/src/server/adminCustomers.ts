@@ -65,11 +65,25 @@ export async function listCustomers(input: z.infer<typeof customerListSchema>) {
 /** Ficha completa: perfil, estadias, cobranças e contratos. */
 export async function customerDetail(customerId: string) {
   const perfil = await query(
-    `SELECT id, full_name, username, email, phone, document_number, rg, rg_issuer,
-            nationality, marital_status, profession, address_line, address_city,
-            address_state, address_zip, avatar_url, role, status, notes,
-            created_at, last_login_at
-     FROM users WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT u.id, u.full_name, u.username, u.email, u.phone, u.document_number, u.rg,
+            u.rg_issuer, u.nationality, u.marital_status, u.profession, u.address_line,
+            u.address_city, u.address_state, u.address_zip, u.avatar_url, u.role,
+            u.status, u.notes, u.created_at, u.last_login_at,
+            -- Os totais viviam só na consulta da lista, e a tela de detalhe
+            -- lia campos que não existiam: viravam "R$ NaN" na cara do
+            -- operador. Mesmas regras dos dois lados, agora.
+            (SELECT COALESCE(SUM(p.amount), 0) FROM payments p
+               JOIN reservations r ON r.id = p.reservation_id
+              WHERE r.customer_id = u.id AND p.status IN ('PAID','PARTIAL')) AS total_pago,
+            (SELECT COALESCE(SUM(p.amount), 0) FROM payments p
+               JOIN reservations r ON r.id = p.reservation_id
+              WHERE r.customer_id = u.id AND p.status IN ('PENDING','PROCESSING')
+                AND r.status IN ('PENDING_PAYMENT','CONFIRMED')) AS em_aberto,
+            (SELECT COUNT(*) FROM reservations r
+              WHERE r.customer_id = u.id AND r.status IN ('CONFIRMED','COMPLETED')) AS estadias,
+            (SELECT MAX(r.check_out)::text FROM reservations r
+              WHERE r.customer_id = u.id AND r.status IN ('CONFIRMED','COMPLETED')) AS ultima_estadia
+     FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL`,
     [customerId]
   );
   if (!perfil.rowCount) throw notFound('CUSTOMER_NOT_FOUND');

@@ -396,3 +396,20 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
   .date-side .hint { text-align: left; }
   .log-item { gap: 4px; grid-template-columns: 1fr; }
 }
+
+/* CRM: cards encerrados que saíram do quadro */
+.lead-card.archived { opacity: .5; }
+.lead-card.archived .lead-open strong { text-decoration: line-through; }
+.kanban-col h2 { align-items: baseline; display: flex; gap: 8px; }
+.kanban-col h2 .col-clear { font-size: 11px; margin-left: auto; }
+.text-button.quiet { color: var(--muted); font-size: 12px; }
+.text-button.quiet:hover { color: var(--coral); }
+
+/* Clientes: ações na linha da estadia */
+.data-table td.row-end { text-align: right; white-space: nowrap; }
+.stack-actions { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+
+/* Pagamento confirmado sozinho */
+.panel.confirmed { background: rgba(46,111,78,.08); }
+.panel.confirmed h2 { color: #1F5138; }
+.hint.waiting { color: #1F5138; }

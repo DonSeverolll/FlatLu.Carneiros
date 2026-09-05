@@ -104,7 +104,18 @@ export type PaymentIntentDto = {
     checkoutUrl: string | null;
   };
   /** Preenchido quando o método é Pix. */
-  pix: { key: string; holderName: string; payload: string; instructions: string | null } | null;
+  pix: {
+    /** Nula no Pix dinâmico: a chave é a da conta do provedor, não a do imóvel. */
+    key: string | null;
+    holderName: string;
+    payload: string;
+    /** Imagem do QR em base64, quando o provedor devolve a dele. */
+    qrCodeBase64: string | null;
+    expiresAt: string | null;
+    /** Verdadeiro quando a baixa acontece sozinha, por webhook. */
+    automatic: boolean;
+    instructions: string | null;
+  } | null;
   /** Preenchido quando o método é cartão. */
   card: { provider: string; checkoutUrl: string } | null;
   reservation: {
