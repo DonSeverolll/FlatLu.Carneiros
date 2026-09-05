@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { query } from './db';
-import { notFound } from './errors';
+import { conflict, notFound } from './errors';
 import { isIsoDate } from './dates';
 
 /**
@@ -23,7 +23,21 @@ export const leadListSchema = z.object({
   stage: z.enum(STAGES).optional(),
   owner: z.string().uuid().optional(),
   overdueOnly: z.coerce.boolean().optional(),
-  search: z.string().trim().max(160).optional()
+  search: z.string().trim().max(160).optional(),
+  /**
+   * Cards arquivados ficam de fora por padrão. `z.coerce.boolean()` não serve:
+   * `Boolean("false")` é `true`, e o quadro traria justamente o que foi
+   * tirado dele.
+   */
+  includeArchived: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((valor) => valor === 'true')
+});
+
+export const archiveSchema = z.object({
+  /** Arquiva a coluna inteira em vez de um card só. */
+  stage: z.enum(['WON', 'LOST']).optional()
 });
 
 export const leadCreateSchema = z.object({
@@ -59,7 +73,7 @@ const LEAD_COLUMNS = `
   l.id, l.name, l.email, l.phone, l.stage::text AS stage, l.source,
   l.estimated_amount, l.check_in::text AS check_in, l.check_out::text AS check_out,
   l.next_action, l.next_action_at, l.lost_reason, l.created_at, l.updated_at,
-  l.closed_at, l.customer_id, l.reservation_id,
+  l.closed_at, l.customer_id, l.reservation_id, l.archived_at,
   COALESCE(p.short_name, p.name) AS unidade, p.color AS unidade_cor,
   dono.full_name AS dono,
   (l.next_action_at IS NOT NULL AND l.next_action_at < now()
@@ -77,19 +91,32 @@ export async function listLeads(input: z.infer<typeof leadListSchema>) {
        AND ($3::boolean IS NOT TRUE OR (l.next_action_at < now() AND l.stage NOT IN ('WON','LOST')))
        AND ($4::text IS NULL OR lower(l.name) LIKE $4 OR lower(COALESCE(l.email,'')) LIKE $4
             OR lower(COALESCE(l.phone,'')) LIKE $4)
+       AND ($5::boolean IS TRUE OR l.archived_at IS NULL)
      ORDER BY
        CASE WHEN l.stage IN ('WON','LOST') THEN 1 ELSE 0 END,
        l.next_action_at NULLS LAST, l.created_at DESC`,
-    [input.stage ?? null, input.owner ?? null, input.overdueOnly ?? null, search]
+    [input.stage ?? null, input.owner ?? null, input.overdueOnly ?? null, search,
+     input.includeArchived]
   );
 
   const porEstagio = await query(
     `SELECT stage::text AS stage, COUNT(*) AS total,
             COALESCE(SUM(estimated_amount), 0) AS valor
-     FROM crm_leads GROUP BY stage`
+     FROM crm_leads
+     WHERE ($1::boolean IS TRUE OR archived_at IS NULL)
+     GROUP BY stage`,
+    [input.includeArchived]
   );
 
-  return { leads: result.rows, byStage: porEstagio.rows };
+  const arquivados = await query<{ total: string }>(
+    `SELECT COUNT(*)::text AS total FROM crm_leads WHERE archived_at IS NOT NULL`
+  );
+
+  return {
+    leads: result.rows,
+    byStage: porEstagio.rows,
+    archivedCount: Number(arquivados.rows[0]?.total ?? 0)
+  };
 }
 
 export async function leadDetail(leadId: string) {
@@ -271,6 +298,12 @@ export async function syncLeadFromReservation(reservationId: string, client?: Po
                    next_action = EXCLUDED.next_action,
                    next_action_at = EXCLUDED.next_action_at,
                    closed_at = EXCLUDED.closed_at,
+                   -- Card arquivado volta ao quadro se a oportunidade reabrir:
+                   -- uma reserva perdida que enfim foi paga precisa ser vista.
+                   archived_at = CASE WHEN EXCLUDED.stage IN ('WON','LOST')
+                                      THEN crm_leads.archived_at ELSE NULL END,
+                   archived_by = CASE WHEN EXCLUDED.stage IN ('WON','LOST')
+                                      THEN crm_leads.archived_by ELSE NULL END,
                    updated_at = now()
      RETURNING id, (xmax = 0) AS criado`,
     [
@@ -304,4 +337,64 @@ export async function syncLeadFromReservation(reservationId: string, client?: Po
   );
 
   return lead.id;
+}
+
+/**
+ * Tira um card do quadro sem apagá-lo.
+ *
+ * Só vale para Fechado e Perdido: são os estágios em que a oportunidade
+ * terminou. Arquivar um card ativo esconderia trabalho em andamento, que é
+ * exatamente o oposto do que um funil serve para fazer.
+ *
+ * O histórico do lead e suas atividades continuam no banco — o card volta a
+ * aparecer se a oportunidade reabrir (ver `syncLeadFromReservation`).
+ */
+export async function archiveLead(leadId: string, actorId: string) {
+  const atual = await query<{ stage: string; name: string; archived_at: string | null }>(
+    `SELECT stage::text AS stage, name, archived_at::text AS archived_at
+       FROM crm_leads WHERE id = $1`,
+    [leadId]
+  );
+  const lead = atual.rows[0];
+  if (!lead) throw notFound('LEAD_NOT_FOUND');
+  if (lead.archived_at) return { id: leadId, name: lead.name, already: true };
+  if (lead.stage !== 'WON' && lead.stage !== 'LOST') {
+    throw conflict('LEAD_STILL_OPEN');
+  }
+
+  await query(
+    `UPDATE crm_leads SET archived_at = now(), archived_by = $2, updated_at = now()
+      WHERE id = $1 AND archived_at IS NULL`,
+    [leadId, actorId]
+  );
+  await addActivity(leadId, actorId, { kind: 'NOTE', body: 'Card arquivado e retirado do quadro.' });
+  return { id: leadId, name: lead.name, already: false };
+}
+
+/** Devolve o card ao quadro. */
+export async function unarchiveLead(leadId: string, actorId: string) {
+  const result = await query(
+    `UPDATE crm_leads SET archived_at = NULL, archived_by = NULL, updated_at = now()
+      WHERE id = $1 AND archived_at IS NOT NULL RETURNING id, name`,
+    [leadId]
+  );
+  if (!result.rowCount) throw notFound('LEAD_NOT_FOUND');
+  await addActivity(leadId, actorId, { kind: 'NOTE', body: 'Card devolvido ao quadro.' });
+  return result.rows[0];
+}
+
+/**
+ * Esvazia uma coluna encerrada de uma vez.
+ *
+ * Fechado e Perdido acumulam indefinidamente — limpar de card em card seria
+ * dezenas de cliques para uma faxina que é sempre feita em bloco.
+ */
+export async function archiveStage(stage: 'WON' | 'LOST', actorId: string) {
+  const result = await query<{ id: string }>(
+    `UPDATE crm_leads SET archived_at = now(), archived_by = $2, updated_at = now()
+      WHERE stage = $1::crm_stage AND archived_at IS NULL
+      RETURNING id`,
+    [stage, actorId]
+  );
+  return { archived: result.rowCount ?? 0, stage };
 }

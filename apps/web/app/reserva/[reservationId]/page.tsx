@@ -45,6 +45,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
   const [metodo, setMetodo] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
   const [parcelas, setParcelas] = useState(1);
   const [formas, setFormas] = useState<{ pix: boolean; card: boolean } | null>(null);
+  const [pago, setPago] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -107,6 +108,52 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
   useEffect(() => {
     if (passo === 'pagamento' && metodo === 'PIX' && !intent && formas?.pix) void gerarCobranca();
   }, [passo, metodo, intent, formas, gerarCobranca]);
+
+  /**
+   * Espera o Pix cair.
+   *
+   * O hóspede paga no aplicativo do banco e volta para esta aba esperando ver
+   * a confirmação. Sem isso ele ficaria olhando um QR que já foi pago, sem
+   * saber se deu certo — e provavelmente pagaria de novo.
+   *
+   * Quem confirma é sempre o servidor, pelo webhook do provedor; aqui só se
+   * pergunta o estado de tempos em tempos. Consulta a cada 6 segundos por no
+   * máximo 15 minutos: passado isso, o QR desta sessão já não vale mesmo.
+   */
+  useEffect(() => {
+    if (passo !== 'pagamento' || metodo !== 'PIX') return;
+    if (!intent?.pix?.automatic) return;
+    if (pago) return;
+
+    let ativo = true;
+    let tentativas = 0;
+    const limite = 150;
+
+    const timer = setInterval(async () => {
+      tentativas += 1;
+      if (!ativo || tentativas > limite) {
+        clearInterval(timer);
+        return;
+      }
+      try {
+        const atual = await api<{ reservation: { payment_status: string; status: string } }>(
+          `/api/reservations/${reservationId}`
+        );
+        const situacao = atual.reservation.payment_status;
+        if (ativo && (situacao === 'PAID' || situacao === 'PARTIAL')) {
+          setPago(situacao);
+          clearInterval(timer);
+        }
+      } catch {
+        // Falha de rede não interrompe a espera: a próxima tentativa resolve.
+      }
+    }, 6000);
+
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+    };
+  }, [passo, metodo, intent, pago, reservationId]);
 
   async function salvarDados(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -408,7 +455,24 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
             )}
           </section>
 
-          {metodo === 'PIX' && intent?.pix && (
+          {pago && (
+            <section className="panel confirmed">
+              <h2>Pagamento confirmado.</h2>
+              <p>
+                {pago === 'PAID'
+                  ? 'Recebemos o valor integral. Sua reserva está garantida.'
+                  : 'Recebemos o sinal. Sua reserva está garantida e o saldo vence no check-in.'}
+              </p>
+              <p className="hint">
+                A confirmação chegou direto do banco — não é preciso enviar comprovante.
+              </p>
+              <Link className="button" href="/conta/historico">
+                Ver minha reserva
+              </Link>
+            </section>
+          )}
+
+          {!pago && metodo === 'PIX' && intent?.pix && (
             <div className="account-grid">
               <section className="panel">
                 <h2>Pix</h2>
@@ -439,6 +503,18 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
                     <dd>{intent.payment.reference}</dd>
                   </div>
                 </dl>
+                {intent.pix.automatic ? (
+                  <p className="hint waiting">
+                    Assim que você pagar, esta página confirma sozinha — pode deixar aberta.
+                    {intent.pix.expiresAt
+                      ? ` Este código vale até ${new Date(intent.pix.expiresAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.`
+                      : ''}
+                  </p>
+                ) : (
+                  <p className="hint">
+                    Depois de pagar, envie o comprovante — a confirmação é feita manualmente.
+                  </p>
+                )}
                 {intent.pix.instructions && <p className="hint">{intent.pix.instructions}</p>}
               </section>
 

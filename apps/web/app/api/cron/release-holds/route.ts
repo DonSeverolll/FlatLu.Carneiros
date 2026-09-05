@@ -2,6 +2,7 @@ import { config } from '@/server/config';
 import { secretMatches } from '@/server/auth';
 import { unauthorized } from '@/server/errors';
 import { handle, json } from '@/server/http';
+import { reconcilePendingPayments } from '@/server/payment';
 import {
   cancelOrphanPayments,
   purgeExpiredSessions,
@@ -30,7 +31,16 @@ export async function GET(request: Request) {
     const orphanPayments = await cancelOrphanPayments();
     const purgedAttempts = await purgeOldAuthAttempts();
     const purgedSessions = await purgeExpiredSessions();
+    // Rede de segurança do dinheiro: webhook perdido deixaria a reserva
+    // pendente com o valor já na conta, e o varredor de holds a expiraria.
+    const reconciled = await reconcilePendingPayments();
 
-    return json({ holds, orphanPayments, purgedAttempts, purgedSessions });
+    return json({
+      holds,
+      orphanPayments,
+      purgedAttempts,
+      purgedSessions,
+      reconciled: { checked: reconciled.checked, settled: reconciled.settled }
+    });
   });
 }

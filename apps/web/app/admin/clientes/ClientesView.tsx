@@ -52,6 +52,7 @@ export default function ClientesView() {
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
   const [mensagem, setMensagem] = useState('Carregando clientes...');
+  const [ocupado, setOcupado] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -78,6 +79,60 @@ export default function ClientesView() {
       setMensagem(messageFor(error));
     }
   }, []);
+
+  /**
+   * Registra um pagamento recebido fora do site.
+   *
+   * Acontece o tempo todo: o hóspede paga por Pix direto, por transferência ou
+   * em dinheiro, e alguém precisa dar baixa. A reserva volta a segurar a data
+   * — se o hold já tinha expirado, o bloqueio é recriado; se outra pessoa
+   * comprou aquelas noites nesse meio-tempo, a operação é recusada em vez de
+   * confirmar uma estadia que não cabe mais.
+   */
+  async function marcarPago(reserva: Detalhe['reservations'][number], quitado: boolean) {
+    const sugerido = Number(reserva.total_amount);
+    const bruto = window.prompt(
+      `Valor recebido de ${detalhe?.customer.full_name ?? 'este hóspede'} (R$):`,
+      quitado ? sugerido.toFixed(2) : (sugerido / 2).toFixed(2)
+    );
+    if (!bruto) return;
+    const amount = Number(bruto.replace(/\./g, '').replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMensagem('Valor inválido.');
+      return;
+    }
+
+    const forma = window.prompt(
+      'Como foi pago?\n\n1 = Pix   2 = Transferência   3 = Dinheiro   4 = Cartão',
+      '1'
+    );
+    const metodo = { '1': 'PIX', '2': 'TRANSFER', '3': 'CASH', '4': 'CREDIT_CARD' }[
+      (forma ?? '1').trim()
+    ];
+    if (!metodo) return;
+
+    setOcupado(reserva.id);
+    try {
+      await api(`/api/admin/reservations/${reserva.id}/confirm-payment`, {
+        method: 'POST',
+        body: {
+          amount,
+          status: quitado ? 'PAID' : 'PARTIAL',
+          method: metodo,
+          note: 'Recebido fora do site, registrado pelo painel de clientes.'
+        }
+      });
+      setMensagem(
+        quitado ? 'Pagamento total registrado.' : 'Sinal registrado. A data segue reservada.'
+      );
+      if (selecionado) await abrir(selecionado);
+      await carregar();
+    } catch (error) {
+      setMensagem(messageFor(error));
+    } finally {
+      setOcupado(null);
+    }
+  }
 
   async function salvarNota(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -214,6 +269,32 @@ export default function ClientesView() {
                         </td>
                         <td>{STATUS_LABEL[r.status] ?? r.status}</td>
                         <td>{brl(r.total_amount)}</td>
+                        <td className="row-end">
+                          {r.payment_status === 'PAID' ? (
+                            <em className="tag good">pago</em>
+                          ) : (
+                            <span className="stack-actions">
+                              <button
+                                className="text-button"
+                                type="button"
+                                disabled={ocupado === r.id}
+                                onClick={() => void marcarPago(r, true)}
+                              >
+                                {ocupado === r.id ? 'Registrando...' : 'Marcar como pago'}
+                              </button>
+                              {r.payment_status !== 'PARTIAL' && (
+                                <button
+                                  className="text-button quiet"
+                                  type="button"
+                                  disabled={ocupado === r.id}
+                                  onClick={() => void marcarPago(r, false)}
+                                >
+                                  Só o sinal
+                                </button>
+                              )}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

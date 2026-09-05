@@ -452,6 +452,40 @@ try {
   console.log('\n--- limpeza');
   const emails = [guest.email, rival.email];
   const ids = (await db.query('select id from users where email = any($1::text[])', [emails])).rows.map(r => r.id);
+
+  /**
+   * Cobranca criada no provedor precisa morrer no provedor.
+   *
+   * Quando o Pix dinamico esta ligado, cada `payment-intent` do teste abre um
+   * QR de verdade na conta da proprietaria. Apagar a linha do banco nao
+   * cancela nada la fora: sobrariam dezenas de cobrancas pendentes em um
+   * extrato real, uma por execucao.
+   */
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (token && ids.length) {
+    const abertas = await db.query(
+      `select p.provider_transaction_id as txn from payments p
+        join reservations r on r.id = p.reservation_id
+       where r.customer_id = any($1::uuid[])
+         and p.provider_transaction_id is not null`,
+      [ids]
+    );
+    let canceladas = 0;
+    for (const { txn } of abertas.rows) {
+      try {
+        const resposta = await fetch(`https://api.mercadopago.com/v1/payments/${txn}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'cancelled' })
+        });
+        if (resposta.ok) canceladas += 1;
+      } catch { /* rede fora: a cobranca vence sozinha */ }
+    }
+    if (abertas.rowCount) {
+      console.log(`  cobrancas canceladas no provedor: ${canceladas}/${abertas.rowCount}`);
+    }
+  }
+
   if (ids.length) {
     await db.query(`delete from audit_events where actor_user_id = any($1::uuid[])`, [ids]);
     await db.query(`delete from payments where reservation_id in (select id from reservations where customer_id = any($1::uuid[]))`, [ids]);
