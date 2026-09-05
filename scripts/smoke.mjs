@@ -491,6 +491,14 @@ try {
     await db.query(`delete from payments where reservation_id in (select id from reservations where customer_id = any($1::uuid[]))`, [ids]);
     await db.query(`delete from inventory_blocks where reservation_id in (select id from reservations where customer_id = any($1::uuid[]))`, [ids]);
     await db.query(`delete from audit_events where entity_id in (select id from reservations where customer_id = any($1::uuid[]))`, [ids]);
+    /**
+     * Os cards do CRM nasciam junto com a reserva e ficavam para tras.
+     * Cada execucao deixava dois ou tres orfaos no funil da proprietaria —
+     * foi assim que a coluna Perdido chegou a 29 cards de teste.
+     */
+    await db.query(`delete from crm_activities where lead_id in (
+      select id from crm_leads where customer_id = any($1::uuid[]))`, [ids]);
+    await db.query(`delete from crm_leads where customer_id = any($1::uuid[])`, [ids]);
     await db.query(`delete from reservations where customer_id = any($1::uuid[])`, [ids]);
     await db.query(`delete from user_sessions where user_id = any($1::uuid[])`, [ids]);
     await db.query(`delete from users where id = any($1::uuid[])`, [ids]);
@@ -507,6 +515,21 @@ try {
   await db.query(`delete from contracts where reservation_id in (
     select id from reservations where customer_id in (
       select id from users where email like 'e2e-%'))`);
+
+  /**
+   * Rede de seguranca para o funil.
+   *
+   * A chave estrangeira de `crm_leads` e ON DELETE SET NULL: apagar o usuario
+   * de teste anula `customer_id` em vez de remover o card, e o orfao fica sem
+   * nenhum vinculo que permita acha-lo depois. Por isso a varredura tambem
+   * usa o nome, que so estes testes produzem.
+   */
+  const orfaos = `select id from crm_leads
+                   where name in ('Hospede Teste E2E', 'Rival Teste E2E')
+                      or email like 'e2e-%@teste.local'`;
+  await db.query(`delete from crm_activities where lead_id in (${orfaos})`);
+  const cards = await db.query(`delete from crm_leads where id in (${orfaos}) returning id`);
+  if (cards.rowCount) console.log(`  cards de teste removidos do funil: ${cards.rowCount}`);
   const leftover = (await db.query(
     `select count(*)::int as n from reservations r join users u on u.id = r.customer_id where u.email like 'e2e-%'`)).rows[0].n;
   console.log(`  dados de teste removidos (sobras: ${leftover})`);
