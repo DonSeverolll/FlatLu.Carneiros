@@ -249,3 +249,136 @@ describe('depositFor', () => {
     expect(() => depositFor(1000, -1)).toThrow();
   });
 });
+
+/**
+ * Uso diurno: entrada e saída na mesma data, sem pernoite.
+ *
+ * O caso que motiva a modalidade é o hóspede que quer o espaço das 09:00 às
+ * 16:00 de um dia e devolvê-lo no mesmo dia, deixando as outras datas livres.
+ */
+describe('quoteStay — uso diurno', () => {
+  it('mesma data cobra a diária daquele dia', () => {
+    const quote = quoteStay({ ...base, checkIn: MONDAY, checkOut: MONDAY });
+    expect(quote.dayUse).toBe(true);
+    expect(quote.nights).toBe(0);
+    expect(quote.totalCents).toBe(30_000);
+    expect(quote.bookable).toBe(true);
+    expect(quote.problems).toEqual([]);
+  });
+
+  it('respeita a tarifa do dia da semana, não uma diária média', () => {
+    expect(quoteStay({ ...base, checkIn: SATURDAY, checkOut: SATURDAY }).totalCents).toBe(100_000);
+    expect(quoteStay({ ...base, checkIn: FRIDAY, checkOut: FRIDAY }).totalCents).toBe(40_000);
+  });
+
+  it('a estadia mínima não se aplica — ela conta noites, e aqui não há nenhuma', () => {
+    const quote = quoteStay({
+      ...base,
+      propertyMinNights: 3,
+      checkIn: MONDAY,
+      checkOut: MONDAY
+    });
+    expect(quote.bookable).toBe(true);
+    expect(quote.problems).toEqual([]);
+  });
+
+  it('tarifa própria de uso diurno prevalece sobre a diária', () => {
+    const quote = quoteStay({
+      ...base,
+      checkIn: SATURDAY,
+      checkOut: SATURDAY,
+      dayUseCents: 25_000
+    });
+    expect(quote.totalCents).toBe(25_000);
+    expect(quote.lines[0]?.label).toBe('Uso diurno');
+  });
+
+  it('recusa quando o espaço não aceita a modalidade', () => {
+    const quote = quoteStay({
+      ...base,
+      checkIn: MONDAY,
+      checkOut: MONDAY,
+      dayUseAllowed: false
+    });
+    expect(quote.bookable).toBe(false);
+    expect(quote.problems).toEqual([{ code: 'DAY_USE_NOT_ALLOWED' }]);
+  });
+
+  it('saída ANTES da entrada continua sendo intervalo inválido', () => {
+    const quote = quoteStay({ ...base, checkIn: SUNDAY, checkOut: MONDAY });
+    expect(quote.dayUse).toBe(false);
+    expect(quote.problems).toEqual([{ code: 'INVALID_RANGE' }]);
+  });
+
+  it('dia fechado para venda recusa o uso diurno', () => {
+    const fechado: WeekdayRate[] = WEEKDAYS.map((w) =>
+      w.weekday === 1 ? { ...w, bookable: false } : w
+    );
+    const quote = quoteStay({ ...base, weekdays: fechado, checkIn: MONDAY, checkOut: MONDAY });
+    expect(quote.problems).toContainEqual({ code: 'NIGHT_NOT_BOOKABLE', nights: [MONDAY] });
+  });
+
+  it('dia sem chegada permitida recusa o uso diurno', () => {
+    const semChegada: WeekdayRate[] = WEEKDAYS.map((w) =>
+      w.weekday === 1 ? { ...w, arrivalAllowed: false } : w
+    );
+    const quote = quoteStay({ ...base, weekdays: semChegada, checkIn: MONDAY, checkOut: MONDAY });
+    expect(quote.problems).toContainEqual({ code: 'ARRIVAL_NOT_ALLOWED', weekday: 1 });
+  });
+
+  it('pacote que exige o período inteiro não é fatiado em um dia', () => {
+    const reveillon: RatePeriod = {
+      id: 'p1',
+      name: 'Réveillon',
+      startsOn: '2026-12-31',
+      endsOn: '2027-01-03',
+      nightlyCents: null,
+      packageCents: 250_000,
+      minNights: null,
+      requiresFullPeriod: true,
+      priority: 100
+    };
+    const quote = quoteStay({
+      ...base,
+      periods: [reveillon],
+      checkIn: '2027-01-01',
+      checkOut: '2027-01-01'
+    });
+    expect(quote.bookable).toBe(false);
+    expect(quote.problems).toContainEqual({
+      code: 'PERIOD_REQUIRES_FULL_STAY',
+      periodName: 'Réveillon',
+      startsOn: '2026-12-31',
+      endsOn: '2027-01-03'
+    });
+  });
+
+  it('período com diária própria vale também no uso diurno', () => {
+    const feriado: RatePeriod = {
+      id: 'p2',
+      name: 'Feriado',
+      startsOn: MONDAY,
+      endsOn: MONDAY,
+      nightlyCents: 55_000,
+      packageCents: null,
+      minNights: null,
+      requiresFullPeriod: false,
+      priority: 50
+    };
+    const quote = quoteStay({ ...base, periods: [feriado], checkIn: MONDAY, checkOut: MONDAY });
+    expect(quote.totalCents).toBe(55_000);
+    expect(quote.appliedPeriods).toEqual(['Feriado']);
+  });
+
+  it('sem tarifa publicada não é vendável', () => {
+    const quote = quoteStay({
+      ...base,
+      weekdays: [],
+      fallbackNightlyCents: 0,
+      checkIn: MONDAY,
+      checkOut: MONDAY
+    });
+    expect(quote.bookable).toBe(false);
+    expect(quote.problems).toContainEqual({ code: 'RATE_NOT_PUBLISHED', nights: [MONDAY] });
+  });
+});

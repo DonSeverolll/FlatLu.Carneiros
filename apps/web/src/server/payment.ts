@@ -542,7 +542,14 @@ async function reblockInventory(client: PoolClient, reservationId: string) {
     await client.query(
       `INSERT INTO inventory_blocks (property_id, reservation_id, source, blocked_nights)
        SELECT r.property_id, r.id, 'RESERVATION',
-              daterange(r.check_in, r.check_out + p.cleaning_gap_days::int, '[)')
+              -- Mesma regra da criacao da reserva: uso diurno ocupa apenas
+              -- o proprio dia, sem o intervalo de limpeza. Um intervalo de
+              -- datas com inicio igual ao fim e vazio e nao travaria nada.
+              CASE WHEN r.check_in = r.check_out
+                   THEN daterange(r.check_in, r.check_in + 1, '[)')
+                   ELSE daterange(r.check_in,
+                                  r.check_out + p.cleaning_gap_days::int, '[)')
+              END
          FROM reservations r JOIN properties p ON p.id = r.property_id
         WHERE r.id = $1`,
       [reservationId]

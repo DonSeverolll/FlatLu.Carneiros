@@ -22,6 +22,8 @@ export type QuoteDto = {
   totalAmount: string;
   depositAmount: string;
   bookable: boolean;
+  /** Entrada e saída na mesma data: um dia sem pernoite. */
+  dayUse: boolean;
   problems: { code: string; [key: string]: unknown }[];
 };
 

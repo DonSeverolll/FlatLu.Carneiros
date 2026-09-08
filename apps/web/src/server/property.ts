@@ -22,6 +22,8 @@ export type PropertyRow = {
   deposit_percentage: string;
   nightly_rate: string;
   min_nights: number;
+  day_use_allowed: boolean;
+  day_use_amount: string | null;
   max_guests: number;
   booking_horizon_days: number;
   hold_minutes: number;
@@ -38,6 +40,7 @@ const PROPERTY_COLUMNS = `
   id, name, slug, short_name, color, location_name, location_url,
   description, timezone, currency, check_in_time, check_in_until, check_out_time,
   cleaning_gap_hours, cleaning_gap_days, deposit_percentage, nightly_rate, min_nights, max_guests,
+  day_use_allowed, day_use_amount,
   booking_horizon_days, hold_minutes, terms_version, terms_content,
   pix_key, pix_holder_name, payment_instructions, hero_image_url, amenities`;
 
@@ -89,6 +92,8 @@ export function publicProperty(property: PropertyRow, rates?: RateSummary) {
     nightlyRate: property.nightly_rate,
     depositPercentage: property.deposit_percentage,
     minNights: property.min_nights,
+    dayUseAllowed: property.day_use_allowed,
+    dayUseAmount: property.day_use_amount,
     maxGuests: property.max_guests,
     bookingHorizonDays: property.booking_horizon_days,
     holdMinutes: property.hold_minutes,
@@ -133,13 +138,22 @@ export async function unavailableNights(
   return { from, to, unavailable: result.rows.map((row) => row.day) };
 }
 
-/** Verifica se um intervalo específico está livre, sem revelar o calendário. */
+/**
+ * Verifica se um intervalo específico está livre, sem revelar o calendário.
+ *
+ * Uso diurno entra aqui com entrada e saída na mesma data. `daterange(X, X)`
+ * é VAZIO e não se sobrepõe a nada — a consulta responderia "livre" mesmo com
+ * o dia vendido. Nesse caso o intervalo testado é o próprio dia.
+ */
 export async function rangeIsFree(propertyId: string, checkIn: string, checkOut: string) {
   const result = await query<{ blocked: boolean }>(
     `SELECT EXISTS (
        SELECT 1 FROM inventory_blocks b
        WHERE b.property_id = $1 AND b.active = true
-         AND b.blocked_nights && daterange($2::date, $3::date, '[)')
+         AND b.blocked_nights && daterange(
+               $2::date,
+               CASE WHEN $3::date <= $2::date THEN $2::date + 1 ELSE $3::date END,
+               '[)')
      ) AS blocked`,
     [propertyId, checkIn, checkOut]
   );

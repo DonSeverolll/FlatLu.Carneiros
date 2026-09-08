@@ -38,7 +38,9 @@ export type RatePeriod = {
 
 export type QuoteLine =
   | { kind: 'NIGHT'; date: string; amountCents: number; label: string }
-  | { kind: 'PACKAGE'; periodId: string; nights: string[]; amountCents: number; label: string };
+  | { kind: 'PACKAGE'; periodId: string; nights: string[]; amountCents: number; label: string }
+  /** Um dia sem pernoite: entra e sai na mesma data. */
+  | { kind: 'DAY_USE'; date: string; amountCents: number; label: string };
 
 export type QuoteProblem =
   | { code: 'INVALID_RANGE' }
@@ -46,12 +48,21 @@ export type QuoteProblem =
   | { code: 'NIGHT_NOT_BOOKABLE'; nights: string[] }
   | { code: 'ARRIVAL_NOT_ALLOWED'; weekday: number }
   | { code: 'BELOW_MIN_NIGHTS'; minNights: number }
-  | { code: 'PERIOD_REQUIRES_FULL_STAY'; periodName: string; startsOn: string; endsOn: string };
+  | { code: 'PERIOD_REQUIRES_FULL_STAY'; periodName: string; startsOn: string; endsOn: string }
+  | { code: 'DAY_USE_NOT_ALLOWED' };
 
 export type StayQuote = {
   checkIn: string;
   checkOut: string;
   nights: number;
+  /**
+   * Verdadeiro quando entrada e saída caem na mesma data.
+   *
+   * `nights` é zero nesses casos, e é justamente por isso que a marca existe:
+   * sem ela, todo consumidor do orçamento leria zero noites como intervalo
+   * inválido — que foi o comportamento até esta modalidade existir.
+   */
+  dayUse: boolean;
   lines: QuoteLine[];
   totalCents: number;
   /** Estadia mínima efetiva para este intervalo. */
@@ -79,6 +90,11 @@ export function nightsOf(checkIn: string, checkOut: string): string[] {
   return Array.from({ length: total }, (_, index) => addDaysIso(checkIn, index));
 }
 
+/** Primeira data de uma linha do extrato, qualquer que seja o tipo dela. */
+function dataDaLinha(line: QuoteLine): string {
+  return line.kind === 'PACKAGE' ? (line.nights[0] ?? '') : line.date;
+}
+
 function periodCovering(periods: RatePeriod[], night: string): RatePeriod | undefined {
   let best: RatePeriod | undefined;
   for (const period of periods) {
@@ -104,20 +120,34 @@ export function quoteStay(input: {
   /** Usada quando a noite não tem período nem tarifa de dia da semana. */
   fallbackNightlyCents: number;
   propertyMinNights: number;
+  /** O espaço aceita locação de um dia só, sem pernoite? */
+  dayUseAllowed?: boolean;
+  /** Tarifa própria do uso diurno. Nula: cobra a diária normal do dia. */
+  dayUseCents?: number | null;
 }): StayQuote {
   const { checkIn, checkOut, weekdays, periods, fallbackNightlyCents, propertyMinNights } = input;
   const nights = nightsOf(checkIn, checkOut);
   const problems: QuoteProblem[] = [];
+  const weekdayByIndex = new Map(weekdays.map((rate) => [rate.weekday, rate]));
 
   if (!nights.length) {
-    return {
-      checkIn, checkOut, nights: 0, lines: [], totalCents: 0,
-      minNights: propertyMinNights, appliedPeriods: [],
-      problems: [{ code: 'INVALID_RANGE' }], bookable: false
-    };
+    // Saída antes da entrada continua sendo erro; saída NO MESMO DIA é uso diurno.
+    if (checkOut !== checkIn) {
+      return {
+        checkIn, checkOut, nights: 0, dayUse: false, lines: [], totalCents: 0,
+        minNights: propertyMinNights, appliedPeriods: [],
+        problems: [{ code: 'INVALID_RANGE' }], bookable: false
+      };
+    }
+    return quoteDayUse({
+      date: checkIn,
+      weekdayByIndex,
+      periods,
+      fallbackNightlyCents,
+      allowed: input.dayUseAllowed !== false,
+      overrideCents: input.dayUseCents ?? null
+    });
   }
-
-  const weekdayByIndex = new Map(weekdays.map((rate) => [rate.weekday, rate]));
 
   // --- chegada -------------------------------------------------------------
   const arrivalWeekday = weekdayOf(checkIn);
@@ -207,8 +237,8 @@ export function quoteStay(input: {
 
   // Ordena para o extrato sair em ordem de calendário.
   lines.sort((a, b) => {
-    const keyA = a.kind === 'NIGHT' ? a.date : (a.nights[0] ?? '');
-    const keyB = b.kind === 'NIGHT' ? b.date : (b.nights[0] ?? '');
+    const keyA = dataDaLinha(a);
+    const keyB = dataDaLinha(b);
     return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
   });
 
@@ -218,12 +248,78 @@ export function quoteStay(input: {
     checkIn,
     checkOut,
     nights: nights.length,
+    dayUse: false,
     lines,
     totalCents,
     minNights,
     appliedPeriods: [...appliedPeriods],
     problems,
     bookable: problems.length === 0 && totalCents > 0
+  };
+}
+
+/**
+ * Orça um dia sem pernoite.
+ *
+ * A estadia mínima não se aplica: ela conta noites, e aqui não há nenhuma.
+ * O resto das regras do dia continua valendo — dia da semana fechado para
+ * venda, chegada não permitida e pacote que exige o período inteiro recusam
+ * o uso diurno do mesmo jeito que recusariam uma diária.
+ */
+function quoteDayUse(input: {
+  date: string;
+  weekdayByIndex: Map<number, WeekdayRate>;
+  periods: RatePeriod[];
+  fallbackNightlyCents: number;
+  allowed: boolean;
+  overrideCents: number | null;
+}): StayQuote {
+  const { date, weekdayByIndex, periods, fallbackNightlyCents, overrideCents } = input;
+  const base = {
+    checkIn: date,
+    checkOut: date,
+    nights: 0,
+    dayUse: true,
+    minNights: 0,
+    appliedPeriods: [] as string[]
+  };
+
+  if (!input.allowed) {
+    return { ...base, lines: [], totalCents: 0, problems: [{ code: 'DAY_USE_NOT_ALLOWED' }], bookable: false };
+  }
+
+  const problems: QuoteProblem[] = [];
+  const weekday = weekdayOf(date);
+  const rate = weekdayByIndex.get(weekday);
+  const period = periodCovering(periods, date);
+
+  if (rate && !rate.arrivalAllowed) problems.push({ code: 'ARRIVAL_NOT_ALLOWED', weekday });
+  if (rate && !rate.bookable && !period) problems.push({ code: 'NIGHT_NOT_BOOKABLE', nights: [date] });
+
+  if (period?.requiresFullPeriod) {
+    problems.push({
+      code: 'PERIOD_REQUIRES_FULL_STAY',
+      periodName: period.name,
+      startsOn: period.startsOn,
+      endsOn: period.endsOn
+    });
+  }
+
+  const doDia = period?.nightlyCents ?? rate?.nightlyCents ?? fallbackNightlyCents;
+  const amountCents = overrideCents ?? doDia;
+  if (amountCents <= 0) problems.push({ code: 'RATE_NOT_PUBLISHED', nights: [date] });
+
+  const label = overrideCents !== null
+    ? 'Uso diurno'
+    : `Uso diurno · ${period?.name ?? weekdayLabel(weekday)}`;
+
+  return {
+    ...base,
+    appliedPeriods: period ? [period.name] : [],
+    lines: amountCents > 0 ? [{ kind: 'DAY_USE', date, amountCents, label }] : [],
+    totalCents: Math.max(0, amountCents),
+    problems,
+    bookable: problems.length === 0 && amountCents > 0
   };
 }
 

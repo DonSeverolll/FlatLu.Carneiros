@@ -22,7 +22,12 @@ export async function quoteForProperty(
     weekdays: calendar.weekdays,
     periods: calendar.periods,
     fallbackNightlyCents: Math.round(Number(property.nightly_rate) * 100),
-    propertyMinNights: property.min_nights
+    propertyMinNights: property.min_nights,
+    dayUseAllowed: property.day_use_allowed,
+    dayUseCents:
+      property.day_use_amount === null
+        ? null
+        : Math.round(Number(property.day_use_amount) * 100)
   });
 }
 
@@ -54,6 +59,8 @@ export function assertBookable(quote: StayQuote): void {
         startsOn: problem.startsOn,
         endsOn: problem.endsOn
       });
+    case 'DAY_USE_NOT_ALLOWED':
+      throw conflict('DAY_USE_NOT_ALLOWED');
   }
 }
 
@@ -64,16 +71,18 @@ export function serializeQuote(quote: StayQuote, depositPercentage: string) {
     checkIn: quote.checkIn,
     checkOut: quote.checkOut,
     nights: quote.nights,
+    /** A tela precisa distinguir "um dia sem pernoite" de "intervalo inválido". */
+    dayUse: quote.dayUse,
     minNights: quote.minNights,
     lines: quote.lines.map((line) =>
-      line.kind === 'NIGHT'
-        ? { kind: line.kind, date: line.date, label: line.label, amountCents: line.amountCents }
-        : {
+      line.kind === 'PACKAGE'
+        ? {
             kind: line.kind,
             label: line.label,
             nights: line.nights,
             amountCents: line.amountCents
           }
+        : { kind: line.kind, date: line.date, label: line.label, amountCents: line.amountCents }
     ),
     appliedPeriods: quote.appliedPeriods,
     totalCents: quote.totalCents,

@@ -180,3 +180,20 @@ export function dateTime(value: string): string {
     hour: '2-digit', minute: '2-digit'
   });
 }
+
+/**
+ * Uma estadia sem pernoite: entrada e saída na mesma data.
+ *
+ * Mostrar "0 noites" ou repetir a mesma data duas vezes ("12 de out até 12 de
+ * out") faz a tela parecer defeituosa. Onde isso aparece, o rótulo troca.
+ */
+export function isDayUse(checkIn: string, checkOut: string): boolean {
+  return checkIn === checkOut;
+}
+
+/** Duração de uma estadia em palavras, incluindo o caso de um dia só. */
+export function stayLength(checkIn: string, checkOut: string): string {
+  if (isDayUse(checkIn, checkOut)) return 'Um dia, sem pernoite';
+  const noites = Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000);
+  return `${noites} ${noites === 1 ? 'noite' : 'noites'}`;
+}

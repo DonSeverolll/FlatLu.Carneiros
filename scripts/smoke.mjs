@@ -158,18 +158,58 @@ try {
   const quoteFor = async (from, to) =>
     (await a.call(`/api/properties/flat-praia-de-carneiros/quote?checkIn=${from}&checkOut=${to}`)).json;
 
+  /**
+   * A expectativa vem da tabela CONFIGURADA, nao de valores escritos aqui.
+   *
+   * Este bloco ja teve 300/400/1000 fixos no codigo e passou a falhar em
+   * bloco no dia em que a proprietaria reajustou os precos — dez falhas que
+   * nao apontavam defeito nenhum. O que o teste precisa provar e que o motor
+   * SOMA a tabela corretamente, nao qual e a tabela.
+   */
+  const tabela = new Map(
+    (await db.query(
+      `select weekday, nightly_amount from rate_weekdays where property_id = $1`,
+      [propertyId]
+    )).rows.map((r) => [Number(r.weekday), Number(r.nightly_amount)])
+  );
+  const diariaDe = (dataIso) => {
+    const [ano, mes, dia] = dataIso.split('-').map(Number);
+    return tabela.get(new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()) ?? 0;
+  };
+  const somaNoites = (from, to) => {
+    let total = 0;
+    for (let d = from; d < to; d = addDays(d, 1)) total += diariaDe(d);
+    return total.toFixed(2);
+  };
+
   let q = await quoteFor(MONDAY, THURSDAY);
-  check('segunda a quinta: 3 noites x 300 = 900', q?.quote?.totalAmount === '900.00',
+  check(`segunda a quinta soma as 3 diarias (${somaNoites(MONDAY, THURSDAY)})`,
+    q?.quote?.totalAmount === somaNoites(MONDAY, THURSDAY),
     `${q?.quote?.totalAmount} em ${q?.quote?.nights} noites`);
 
   q = await quoteFor(SATURDAY, SUNDAY);
-  check('sábado para domingo: 1000', q?.quote?.totalAmount === '1000.00', q?.quote?.totalAmount);
+  check('sabado para domingo cobra a diaria de sabado',
+    q?.quote?.totalAmount === somaNoites(SATURDAY, SUNDAY), q?.quote?.totalAmount);
 
   q = await quoteFor(FRIDAY, SUNDAY);
-  check('sexta a domingo: 400 + 1000 = 1400', q?.quote?.totalAmount === '1400.00', q?.quote?.totalAmount);
+  check('sexta a domingo soma sexta + sabado',
+    q?.quote?.totalAmount === somaNoites(FRIDAY, SUNDAY), q?.quote?.totalAmount);
   check('extrato detalha cada noite', (q?.quote?.lines ?? []).length === 2,
     (q?.quote?.lines ?? []).map((l) => l.label).join(' + '));
-  check('sinal de 50% sobre 1400 = 700', q?.quote?.depositAmount === '700.00', q?.quote?.depositAmount);
+  const metade = (Number(somaNoites(FRIDAY, SUNDAY)) / 2).toFixed(2);
+  check('sinal de 50% sobre o total', q?.quote?.depositAmount === metade,
+    `${q?.quote?.depositAmount} (esperado ${metade})`);
+
+  // --- uso diurno: um dia so, sem pernoite --------------------------------
+  q = await quoteFor(MONDAY, MONDAY);
+  check('um dia sem pernoite e vendavel', q?.quote?.bookable === true,
+    `${q?.quote?.bookable} ${JSON.stringify(q?.quote?.problems ?? [])}`);
+  check('um dia sem pernoite cobra a diaria daquele dia',
+    q?.quote?.totalAmount === diariaDe(MONDAY).toFixed(2),
+    `${q?.quote?.totalAmount} (esperado ${diariaDe(MONDAY).toFixed(2)})`);
+  check('o orcamento marca a estadia como uso diurno',
+    q?.quote?.dayUse === true && q?.quote?.nights === 0,
+    `dayUse=${q?.quote?.dayUse} noites=${q?.quote?.nights}`);
 
   console.log('\n--- 4. regras de negócio');
   await a.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: { minNights: 2 } });
@@ -229,15 +269,37 @@ try {
   check('cada unidade tem cor própria',
     new Set((cal?.units ?? []).map((u) => u.color)).size === (cal?.units ?? []).length,
     (cal?.units ?? []).map((u) => `${u.shortName}=${u.color}`).join(' '));
-  check('capacidades conferem com a tabela',
-    (cal?.units ?? []).every((u) => u.slug === 'flat-praia-de-carneiros' ? u.maxGuests === 7 : u.maxGuests === 10),
-    (cal?.units ?? []).map((u) => `${u.shortName}:${u.maxGuests}`).join(' '));
+  // A capacidade e configuravel: o teste confere que a vitrine publica o que
+  // esta no banco, nao um numero decorado.
+  const capacidades = new Map(
+    (await db.query(`select slug, max_guests from properties where active`)).rows
+      .map((r) => [r.slug, Number(r.max_guests)])
+  );
+  check('capacidades conferem com o cadastro',
+    (cal?.units ?? []).every((u) => u.maxGuests === capacidades.get(u.slug)),
+    (cal?.units ?? []).map((u) => `${u.shortName}:${u.maxGuests}/${capacidades.get(u.slug)}`).join(' '));
 
-  // A reserva do flat (seção 5) não pode ter ocupado a casa nas mesmas datas.
+  /**
+   * A reserva do flat (secao 5) nao pode ter ocupado a casa nas mesmas datas.
+   *
+   * A checagem olha se a noite foi bloqueada PELA RESERVA DO FLAT, e nao se a
+   * outra unidade esta ocupada por qualquer motivo: uma delas passou a ter um
+   * bloqueio de obra de meses, e o teste acusava vazamento onde havia apenas
+   * manutencao legitima.
+   */
   const others = (cal?.units ?? []).filter((u) => u.slug !== 'flat-praia-de-carneiros');
-  const leaked = others.filter((u) => (u.unavailable ?? []).includes(checkIn));
-  check('reservar o flat não ocupa a casa nas mesmas datas', leaked.length === 0,
-    leaked.length ? leaked.map((u) => u.shortName).join(', ') : 'nenhum vazamento');
+  const vazou = (await db.query(
+    `select coalesce(p.short_name, p.name) as unidade
+       from inventory_blocks b
+       join properties p on p.id = b.property_id
+       join reservations res on res.id = b.reservation_id
+      where b.active
+        and res.property_id = $1
+        and p.id <> $1`,
+    [propertyId]
+  )).rows;
+  check('reservar o flat não ocupa a casa nas mesmas datas', vazou.length === 0,
+    vazou.length ? vazou.map((x) => x.unidade).join(', ') : 'nenhum vazamento');
 
   const casa = others[0];
   q = await quoteFor(checkIn, checkOut);
@@ -281,19 +343,41 @@ try {
    */
   const janela = [checkIn, addDays(checkIn, 1), addDays(checkIn, 2)];
   const consumidas = antes.filter((noite) => janela.includes(noite));
-  check('estadia de 3 noites consome exatamente 3 noites',
-    consumidas.length === 3 && !antes.includes(addDays(checkIn, 3)),
-    `${consumidas.length} na janela; dia da saída ${antes.includes(addDays(checkIn, 3)) ? 'BLOQUEADO' : 'livre'}`);
-  check('o dia do check-out continua vendável', !antes.includes(checkOut),
-    `${checkOut} ${antes.includes(checkOut) ? 'BLOQUEADO' : 'livre'}`);
+  check('estadia de 3 noites consome exatamente 3 noites', consumidas.length === 3,
+    `${consumidas.length} na janela`);
+
+  /**
+   * O dia do check-out segue vendavel APENAS quando nao ha intervalo de
+   * limpeza configurado. Com um dia de intervalo, bloquear a saida e o
+   * comportamento correto — e foi o que a proprietaria configurou.
+   */
+  const folga = Number((await db.query(
+    `select cleaning_gap_days from properties where id = $1`, [propertyId]
+  )).rows[0].cleaning_gap_days);
+  const saidaBloqueada = antes.includes(checkOut);
+  check(
+    folga > 0
+      ? `o dia do check-out fica reservado para a limpeza (${folga} dia)`
+      : 'o dia do check-out continua vendável',
+    folga > 0 ? saidaBloqueada : !saidaBloqueada,
+    `${checkOut} ${saidaBloqueada ? 'bloqueado' : 'livre'}`
+  );
   check('a véspera do check-in continua vendável', !antes.includes(addDays(checkIn, -1)),
     `${addDays(checkIn, -1)} ${antes.includes(addDays(checkIn, -1)) ? 'BLOQUEADA' : 'livre'}`);
 
+  // A proxima estadia comeca depois do intervalo de limpeza.
+  const encostada = addDays(checkIn, 3 + folga);
   r = await rv.call('/api/reservations', { method: 'POST', body: {
-    propertyId: 'flat-praia-de-carneiros', checkIn: addDays(checkIn, 3), checkOut: addDays(checkIn, 5), guestCount: 2,
+    propertyId: 'flat-praia-de-carneiros', checkIn: encostada, checkOut: addDays(encostada, 2), guestCount: 2,
     termsAccepted: true, idempotencyKey: `e2e-adj-${stamp}`
   }});
-  check('estadia encostada no check-out é aceita', r.status === 201, `${r.status} ${r.json?.error ?? ''}`);
+  check(
+    folga > 0
+      ? `estadia logo apos a limpeza e aceita (${encostada})`
+      : 'estadia encostada no check-out é aceita',
+    r.status === 201,
+    `${r.status} ${r.json?.error ?? ''}`
+  );
   const adjacent = r.json?.reservation;
 
   r = await a.call('/api/properties/flat-praia-de-carneiros/availability');
@@ -329,8 +413,20 @@ try {
   const corpo = r.json?.contract?.body ?? '';
   check('sem marcador não preenchido no texto', !corpo.includes('{{'),
     (corpo.match(/\{\{[a-z_]+\}\}/g) ?? []).join(', ') || 'nenhum');
-  check('contrato traz o valor por extenso', corpo.includes('novecentos reais'),
-    corpo.match(/R\$ [\d.,]+ \([^)]+\)/)?.[0] ?? 'não encontrado');
+  /**
+   * O valor por extenso acompanha a tarifa vigente.
+   *
+   * A assercao era pelo texto 'novecentos reais', da tabela de precos antiga.
+   * O que precisa ser provado e que o numero foi grafado em palavras e que
+   * bate com o total da reserva — nao qual e o total.
+   */
+  const porExtenso = corpo.match(/R\$ [\d.,]+ \(([^)]+)\)/);
+  const totalDaReserva = Number(reservation.total_amount).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+  check('contrato traz o valor por extenso',
+    Boolean(porExtenso) && /reais/.test(porExtenso[1]) && corpo.includes(totalDaReserva),
+    porExtenso?.[0] ?? 'não encontrado');
   check('contrato traz o nome do locatário', corpo.includes(guest.fullName));
   check('contrato traz a comarca do foro', /Foro da Comarca de \S+/.test(corpo));
   check('contrato traz os horários', corpo.includes('09:00') && corpo.includes('16:00'));

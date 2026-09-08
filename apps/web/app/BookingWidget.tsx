@@ -34,6 +34,14 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
   const [selectedUnit, setSelectedUnit] = useState(calendar.units[0]?.slug ?? '');
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
+  /**
+   * Locação de um dia só, sem pernoite.
+   *
+   * Existe como opção explícita porque a alternativa — clicar duas vezes na
+   * mesma data ou digitar a mesma data nos dois campos — ninguém descobre
+   * sozinho. Marcada, a saída acompanha a entrada.
+   */
+  const [dayUse, setDayUse] = useState(false);
   const [guests, setGuests] = useState(2);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
@@ -72,6 +80,9 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
   }
 
   function rangeIsFree(fromDay: string, toDay: string): boolean {
+    // Um dia só: o laço abaixo não daria nenhuma volta e diria "livre" mesmo
+    // com a data ocupada.
+    if (fromDay === toDay) return !blocked.has(fromDay);
     for (let day = fromDay; day < toDay; day = addDays(day, 1)) {
       if (blocked.has(day)) return false;
     }
@@ -80,7 +91,22 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
 
   function pickDay(day: string) {
     setStatus('');
-    if (!checkIn || checkOut || day <= checkIn) {
+    if (dayUse) {
+      if (blocked.has(day)) {
+        setStatus('Esse dia já está ocupado. Escolha outro.');
+        return;
+      }
+      setCheckIn(day);
+      setCheckOut(day);
+      return;
+    }
+    // Clicar de novo na mesma data de entrada equivale a pedir um dia só.
+    if (checkIn && !checkOut && day === checkIn) {
+      setDayUse(true);
+      setCheckOut(day);
+      return;
+    }
+    if (!checkIn || checkOut || day < checkIn) {
       setCheckIn(day);
       setCheckOut('');
       return;
@@ -93,7 +119,7 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
   }
 
   useEffect(() => {
-    if (!unit || !checkIn || !checkOut || nightsBetween(checkIn, checkOut) <= 0) {
+    if (!unit || !checkIn || !checkOut || nightsBetween(checkIn, checkOut) < 0) {
       setQuote(null);
       return;
     }
@@ -209,7 +235,7 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
                 max={calendar.to}
                 onChange={(event) => {
                   setCheckIn(event.target.value);
-                  setCheckOut('');
+                  setCheckOut(dayUse ? event.target.value : '');
                 }}
               />
             </label>
@@ -218,7 +244,8 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
               <input
                 type="date"
                 value={checkOut}
-                min={checkIn ? addDays(checkIn, 1) : calendar.from}
+                min={checkIn || calendar.from}
+                disabled={dayUse}
                 onChange={(event) => setCheckOut(event.target.value)}
               />
             </label>
@@ -236,6 +263,24 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
             </label>
           </div>
 
+          <label className="day-use-toggle">
+            <input
+              type="checkbox"
+              checked={dayUse}
+              onChange={(event) => {
+                const ligado = event.target.checked;
+                setDayUse(ligado);
+                setStatus('');
+                if (ligado) setCheckOut(checkIn);
+                else setCheckOut('');
+              }}
+            />
+            <span>
+              Só um dia, sem pernoite
+              <small>Entrada às 09:00 e devolução até as 16:00 do mesmo dia.</small>
+            </span>
+          </label>
+
           <div className="quote">
             {!checkIn || !checkOut ? (
               <>
@@ -252,7 +297,9 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
             ) : quote?.quote.bookable && quote.available ? (
               <>
                 <span>
-                  {quote.quote.nights} {quote.quote.nights === 1 ? 'noite' : 'noites'}
+                  {quote.quote.nights === 0
+                    ? 'Um dia, sem pernoite'
+                    : `${quote.quote.nights} ${quote.quote.nights === 1 ? 'noite' : 'noites'}`}
                 </span>
                 <strong>{brl(quote.quote.totalAmount)}</strong>
                 <small>
@@ -262,7 +309,9 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
               </>
             ) : (
               <>
-                <span>{quote?.quote.nights ?? 0} noite(s)</span>
+                <span>
+                  {quote && quote.quote.nights === 0 ? 'Um dia' : `${quote?.quote.nights ?? 0} noite(s)`}
+                </span>
                 <strong>Indisponível</strong>
                 <small>{quote ? describeProblems(quote) : 'Não foi possível orçar.'}</small>
               </>
@@ -276,9 +325,9 @@ export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto 
               {quote.quote.lines.map((line, index) => (
                 <tr key={index}>
                   <td>
-                    {line.kind === 'NIGHT'
-                      ? `${shortDate(line.date)} · ${line.label}`
-                      : `${line.label} · ${line.nights.length} noites`}
+                    {line.kind === 'PACKAGE'
+                      ? `${line.label} · ${line.nights.length} noites`
+                      : `${shortDate(line.date)} · ${line.label}`}
                   </td>
                   <td>{brl(line.amountCents / 100)}</td>
                 </tr>
@@ -340,6 +389,8 @@ function describeProblems(response: QuoteResponseDto): string {
       return `${problem.periodName} é pacote fechado: a estadia precisa cobrir o período inteiro.`;
     case 'RATE_NOT_PUBLISHED':
       return 'A tarifa dessas datas ainda não foi publicada.';
+    case 'DAY_USE_NOT_ALLOWED':
+      return 'Este espaço não é alugado por um dia só. Escolha pelo menos uma noite.';
     default:
       return 'Escolha outro intervalo.';
   }

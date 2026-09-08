@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, messageFor } from '@/lib/api';
-import { BLOCK_SOURCE, PAYMENT_LABEL, STATUS_LABEL, brl, longDate, shortDate } from '@/lib/format';
+import {
+  BLOCK_SOURCE,
+  PAYMENT_LABEL,
+  STATUS_LABEL,
+  brl,
+  isDayUse,
+  longDate,
+  shortDate
+} from '@/lib/format';
 
 type Reserva = {
   id: string;
@@ -444,7 +452,11 @@ export default function AgendaView({ units }: { units: Unidade[] }) {
                   >
                     <span className="agenda-dates">
                       <strong>{shortDate(reserva.check_in)}</strong>
-                      <small>até {shortDate(reserva.check_out)}</small>
+                      <small>
+                        {isDayUse(reserva.check_in, reserva.check_out)
+                          ? 'só este dia'
+                          : `até ${shortDate(reserva.check_out)}`}
+                      </small>
                     </span>
                     <span className="agenda-main">
                       <strong>{reserva.customer_name}</strong>
@@ -481,7 +493,11 @@ export default function AgendaView({ units }: { units: Unidade[] }) {
                         </div>
                         <div>
                           <dt>Saída</dt>
-                          <dd>{longDate(reserva.check_out)} até as 16:00</dd>
+                          <dd>
+                            {isDayUse(reserva.check_in, reserva.check_out)
+                              ? 'No mesmo dia, até as 16:00 — sem pernoite'
+                              : `${longDate(reserva.check_out)} até as 16:00`}
+                          </dd>
                         </div>
                         <div>
                           <dt>Contato</dt>

@@ -23,7 +23,15 @@ export async function GET(request: Request, ctx: { params: Promise<{ idOrSlug: s
     const { checkIn, checkOut } = parseQuery(request, schema);
     const property = await findProperty(idOrSlug);
     const quote = await quoteForProperty(property, checkIn, checkOut);
-    const available = quote.nights > 0 ? await rangeIsFree(property.id, checkIn, checkOut) : false;
+    /**
+     * Zero noites já não significa intervalo inválido: é o uso diurno. Só um
+     * intervalo de fato invertido dispensa a consulta ao estoque — antes esta
+     * linha reprovava todo dia único, mesmo com a data livre.
+     */
+    const intervaloInvalido = quote.problems.some((p) => p.code === 'INVALID_RANGE');
+    const available = intervaloInvalido
+      ? false
+      : await rangeIsFree(property.id, checkIn, checkOut);
     return json({
       quote: serializeQuote(quote, property.deposit_percentage),
       available,

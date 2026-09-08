@@ -413,3 +413,9 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .panel.confirmed { background: rgba(46,111,78,.08); }
 .panel.confirmed h2 { color: #1F5138; }
 .hint.waiting { color: #1F5138; }
+
+/* Locação de um dia só */
+.day-use-toggle { align-items: flex-start; color: var(--ink); display: flex; font-size: 14px; gap: 10px; margin: 4px 0 18px; }
+.day-use-toggle input { margin: 2px 0 0; width: auto; }
+.day-use-toggle small { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+.fields input:disabled { background: rgba(23,63,69,.05); color: var(--muted); }

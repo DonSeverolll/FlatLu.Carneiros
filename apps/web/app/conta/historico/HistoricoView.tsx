@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, messageFor } from '@/lib/api';
-import { PAYMENT_LABEL, STATUS_LABEL, brl, longDate } from '@/lib/format';
+import { PAYMENT_LABEL, STATUS_LABEL, brl, isDayUse, longDate } from '@/lib/format';
 import type { ReservationDto } from '@/lib/types';
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -50,8 +50,9 @@ export default function HistoricoView() {
             {reserva.check_in_time ? ` a partir das ${reserva.check_in_time.slice(0, 5)}` : ''}
           </small>
           <small>
-            Saída {longDate(reserva.check_out)}
-            {reserva.check_out_time ? ` até as ${reserva.check_out_time.slice(0, 5)}` : ''}
+            {isDayUse(reserva.check_in, reserva.check_out)
+              ? `Saída no mesmo dia${reserva.check_out_time ? ` até as ${reserva.check_out_time.slice(0, 5)}` : ''}`
+              : `Saída ${longDate(reserva.check_out)}${reserva.check_out_time ? ` até as ${reserva.check_out_time.slice(0, 5)}` : ''}`}
           </small>
           <small>
             {reserva.guest_count} {reserva.guest_count === 1 ? 'hóspede' : 'hóspedes'}

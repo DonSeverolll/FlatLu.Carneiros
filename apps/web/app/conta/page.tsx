@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { CHARGE_STATUS, STATUS_LABEL, brl, longDate } from '@/lib/format';
+import { CHARGE_STATUS, STATUS_LABEL, brl, isDayUse, longDate } from '@/lib/format';
 import type { ReservationDto, UserDto } from '@/lib/types';
 
 type Cobranca = {
@@ -102,7 +102,11 @@ export default function ContaPage() {
                 </div>
                 <div>
                   <dt>Saída</dt>
-                  <dd>{longDate(proxima.check_out)} até as 16:00</dd>
+                  <dd>
+                    {isDayUse(proxima.check_in, proxima.check_out)
+                      ? 'No mesmo dia, até as 16:00'
+                      : `${longDate(proxima.check_out)} até as 16:00`}
+                  </dd>
                 </div>
                 <div>
                   <dt>Situação</dt>

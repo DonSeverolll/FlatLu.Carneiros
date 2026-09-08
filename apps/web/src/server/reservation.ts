@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { query, transaction, violatedConstraint } from './db';
 import { badRequest, conflict, notFound } from './errors';
-import { isIsoDate, nightsBetween, todayIso } from './dates';
+import { addDaysIso, isIsoDate, nightsBetween, todayIso } from './dates';
 import { centsToNumeric } from './pricing';
 import { assertBookable, quoteForProperty } from './quote';
 import { depositFor } from './rates';
@@ -35,8 +35,13 @@ export async function createReservation(
   const property = await findProperty(input.propertyId);
 
   // ---- Regras que o front-end não pode decidir -----------------------------
+  /**
+   * Zero noites é legítimo: é o uso diurno, com entrada e saída na mesma data.
+   * Só saída ANTES da entrada continua sendo erro. Quem decide se a modalidade
+   * é aceita e quanto custa é o motor de tarifas, logo abaixo.
+   */
   const nights = nightsBetween(input.checkIn, input.checkOut);
-  if (nights <= 0) throw badRequest('CHECKOUT_BEFORE_CHECKIN');
+  if (nights < 0) throw badRequest('CHECKOUT_BEFORE_CHECKIN');
   if (input.guestCount > property.max_guests) {
     throw badRequest('ABOVE_MAX_GUESTS', { maxGuests: property.max_guests });
   }
@@ -114,11 +119,27 @@ export async function createReservation(
        * Ocupa as NOITES da estadia: [check-in, check-out). O dia do check-out
        * não é uma noite e segue vendável, então a virada no mesmo dia funciona
        * independentemente dos horários de chegada e saída.
+       *
+       * O uso diurno é o caso especial. Com entrada e saída na mesma data,
+       * `daterange(X, X)` é um intervalo VAZIO — e intervalo vazio não se
+       * sobrepõe a nada, então a restrição de exclusão deixaria o dia
+       * vendável e o espaço seria vendido duas vezes.
+       *
+       * Ele também não consome o dia de limpeza: ninguém dormiu no imóvel, e
+       * o pedido foi justamente que as demais datas continuassem à venda. Um
+       * dia sem pernoite ocupa aquele dia, e só ele.
        */
+      const diaUnico = input.checkIn === input.checkOut;
       await client.query(
         `INSERT INTO inventory_blocks (property_id, reservation_id, source, blocked_nights)
          VALUES ($1, $2, 'RESERVATION', daterange($3::date, $4::date + $5::int, '[)'))`,
-        [property.id, reservation.id, input.checkIn, input.checkOut, property.cleaning_gap_days]
+        [
+          property.id,
+          reservation.id,
+          input.checkIn,
+          diaUnico ? addDaysIso(input.checkIn, 1) : input.checkOut,
+          diaUnico ? 0 : property.cleaning_gap_days
+        ]
       );
     } catch (error) {
       if (violatedConstraint(error) === 'inventory_blocks_no_overlap') {

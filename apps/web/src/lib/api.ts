@@ -66,6 +66,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
 /** Mensagens em português para os códigos que a API devolve. */
 const MESSAGES: Record<string, string> = {
+  DAY_USE_NOT_ALLOWED: 'Este espaço não é alugado por um dia só. Escolha pelo menos uma noite.',
   BLOCK_NOT_FOUND: 'Bloqueio não encontrado.',
   BLOCK_ALREADY_RELEASED: 'Este bloqueio já foi liberado.',
   BLOCK_BELONGS_TO_RESERVATION:
