@@ -8,6 +8,7 @@ import { depositFor } from './rates';
 import { releaseExpiredHolds } from './inventory';
 import { findProperty } from './property';
 import { syncLeadFromReservation } from './crm';
+import { attributeLead } from './marketing/attribution';
 
 const isoDate = z.string().refine(isIsoDate, 'Use o formato YYYY-MM-DD');
 
@@ -30,7 +31,7 @@ const RESERVATION_COLUMNS = `
 export async function createReservation(
   input: CreateReservationInput,
   session: { id: string },
-  context: { ip?: string | null }
+  context: { ip?: string | null; visitorId?: string | null }
 ) {
   const property = await findProperty(input.propertyId);
 
@@ -166,7 +167,23 @@ export async function createReservation(
     );
 
     // O funil acompanha o que aconteceu, sem depender de alguém alimentar.
-    await syncLeadFromReservation(reservation.id, client);
+    const leadId = await syncLeadFromReservation(reservation.id, client);
+
+    /*
+     * Origem do lead (anúncio, UTM). Em SAVEPOINT: atribuição é acessória e
+     * um erro nela abortaria a transação inteira — perder a reserva por causa
+     * de uma UTM seria trocar o principal pelo acessório.
+     */
+    if (leadId) {
+      await client.query('SAVEPOINT atribuicao');
+      try {
+        await attributeLead(leadId, { visitorId: context.visitorId ?? null, userId: session.id }, client);
+        await client.query('RELEASE SAVEPOINT atribuicao');
+      } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT atribuicao');
+        console.error('[attribution] falha ao atribuir lead da reserva', error);
+      }
+    }
 
     return { reservation, created: true };
   });

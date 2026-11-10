@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import BookingWidget from './BookingWidget';
+import CatalogoEspacos from './CatalogoEspacos';
+import { catalogoPublico, type CatalogoEspaco } from '@/server/catalogo/catalogo';
 import { unitCalendar } from '@/server/units';
 import type { UnitCalendarDto } from '@/lib/types';
 
@@ -24,8 +26,21 @@ async function loadCalendar(): Promise<{ calendar: UnitCalendarDto | null; error
   }
 }
 
+/** Catálogo é enfeite: se falhar, a vitrine segue sem ele. */
+async function loadCatalogo(): Promise<{ espacos: CatalogoEspaco[]; conta: string | null }> {
+  try {
+    return await catalogoPublico();
+  } catch (error) {
+    console.error('[catalogo]', error);
+    return { espacos: [], conta: null };
+  }
+}
+
 export default async function HomePage() {
-  const { calendar, error } = await loadCalendar();
+  const [{ calendar, error }, catalogo] = await Promise.all([loadCalendar(), loadCatalogo()]);
+  // A foto de abertura é a capa do primeiro espaço com catálogo; sem ela,
+  // fica a imagem genérica do CSS.
+  const capa = catalogo.espacos[0]?.fotos.find((f) => f.capa && f.tipo === 'IMAGE') ?? null;
 
   // Agrupa por endereço: dois locais, três espaços.
   const locations = new Map<string, { url: string | null; units: string[] }>();
@@ -41,6 +56,7 @@ export default async function HomePage() {
       <nav className="nav">
         <strong>APT CARNEIROS · FLAT &amp; CASA</strong>
         <span className="nav-links">
+          {catalogo.espacos.length > 0 && <a href="#espacos">Fotos dos espaços</a>}
           <a href="#reserva">Consultar datas</a>
         </span>
       </nav>
@@ -57,7 +73,18 @@ export default async function HomePage() {
             Ver disponibilidade
           </a>
         </div>
-        <div className="hero-image" role="img" aria-label="Área de lazer com piscina" />
+        <div
+          aria-label={capa?.descricao ?? 'Área de lazer com piscina'}
+          className="hero-image"
+          role="img"
+          style={
+            capa
+              ? {
+                  backgroundImage: `linear-gradient(145deg, rgba(23,63,69,.05), rgba(23,63,69,.35)), url(${JSON.stringify(capa.url)})`
+                }
+              : undefined
+          }
+        />
       </section>
 
       <section className="details">
@@ -108,6 +135,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <CatalogoEspacos conta={catalogo.conta} espacos={catalogo.espacos} />
 
       <section className="booking-section" id="reserva">
         {calendar ? (

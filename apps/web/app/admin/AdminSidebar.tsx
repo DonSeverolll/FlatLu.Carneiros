@@ -10,7 +10,10 @@ type Unit = { slug: string; shortName: string; color: string };
 const ITEMS = [
   { href: '/admin', label: 'Menu', hint: 'Tarifas, Pix e bloqueios' },
   { href: '/admin/dashboard', label: 'Dashboard', hint: 'Vendas e ocupação' },
+  { href: '/admin/atendimento', label: 'Atendimento', hint: 'WhatsApp e Instagram Direct' },
   { href: '/admin/crm', label: 'CRM', hint: 'Funil de oportunidades' },
+  { href: '/admin/marketing', label: 'Marketing', hint: 'Anúncios, origem e retorno' },
+  { href: '/admin/catalogo', label: 'Catálogo', hint: 'Fotos do Instagram por espaço' },
   { href: '/admin/clientes', label: 'Clientes', hint: 'Histórico e pagamentos' },
   { href: '/admin/agenda', label: 'Agenda', hint: 'Chegadas, saídas e bloqueios' },
   { href: '/admin/usuarios', label: 'Usuários', hint: 'Acessos e senhas' },
@@ -83,6 +86,28 @@ export default function AdminSidebar({ units }: { units: Unit[] }) {
         )}
 
         <div className="sidebar-foot">
+          <Link
+            aria-current={pathname.startsWith('/admin/configuracoes') ? 'page' : undefined}
+            className={
+              pathname.startsWith('/admin/configuracoes') ? 'sidebar-link sidebar-config on' : 'sidebar-link sidebar-config'
+            }
+            href="/admin/configuracoes"
+            onClick={() => setOpen(false)}
+          >
+            <span>
+              <svg aria-hidden="true" className="gear" viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.4-2.5a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinejoin="round"
+                  strokeWidth="1.6"
+                />
+              </svg>
+              Configurações
+            </span>
+            <small>Ferramentas, integrações e IA</small>
+          </Link>
           <Link className="sidebar-link" href="/">
             <span>Ver o site</span>
           </Link>

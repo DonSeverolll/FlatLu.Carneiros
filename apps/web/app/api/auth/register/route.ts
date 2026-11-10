@@ -1,6 +1,7 @@
 import { recordAudit } from '@/server/audit';
 import { startSession } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
+import { linkVisitorToUser, visitorIdFromCookies } from '@/server/marketing/attribution';
 import { requestContext } from '@/server/request';
 import { REGISTER_POLICY, assertWithinLimit, recordAttempt } from '@/server/throttle';
 import { registerSchema, registerUser } from '@/server/user';
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
     try {
       const user = await registerUser(input);
       await startSession(user.id, user.role, context);
+      await linkVisitorToUser(await visitorIdFromCookies(), user.id);
       await recordAttempt('register', context.ip ?? 'unknown', true);
       await recordAudit({
         actorUserId: user.id,

@@ -1,5 +1,6 @@
 import { requireUser } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
+import { visitorIdFromCookies } from '@/server/marketing/attribution';
 import { requestContext } from '@/server/request';
 import { createReservation, createReservationSchema } from '@/server/reservation';
 
@@ -11,7 +12,10 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const session = await requireUser();
     const input = await parseBody(request, createReservationSchema);
-    const { reservation, created } = await createReservation(input, session, requestContext(request));
+    const { reservation, created } = await createReservation(input, session, {
+      ...requestContext(request),
+      visitorId: await visitorIdFromCookies()
+    });
     return json({ reservation }, created ? 201 : 200);
   });
 }

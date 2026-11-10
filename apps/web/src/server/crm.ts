@@ -74,6 +74,9 @@ const LEAD_COLUMNS = `
   l.estimated_amount, l.check_in::text AS check_in, l.check_out::text AS check_out,
   l.next_action, l.next_action_at, l.lost_reason, l.created_at, l.updated_at,
   l.closed_at, l.customer_id, l.reservation_id, l.archived_at,
+  l.origem_canal, l.utm_source, l.utm_campaign, l.ad_id,
+  (SELECT a.ad_name FROM meta_ads a WHERE a.ad_id = l.ad_id) AS ad_name,
+  (SELECT a.campaign_name FROM meta_ads a WHERE a.ad_id = l.ad_id) AS campaign_name,
   COALESCE(p.short_name, p.name) AS unidade, p.color AS unidade_cor,
   dono.full_name AS dono,
   (l.next_action_at IS NOT NULL AND l.next_action_at < now()
