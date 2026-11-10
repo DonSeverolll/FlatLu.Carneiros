@@ -71,7 +71,9 @@ function crc16(payload) {
 
 const db = new pg.Client({
   connectionString: process.env.DATABASE_URL.replace(':6543', ':5432'),
-  ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 20000
+  // Mesma regra do db:migrate: o Postgres do docker compose não tem SSL.
+  ssl: (process.env.DATABASE_SSL ?? 'true') === 'true' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 20000
 });
 await db.connect();
 

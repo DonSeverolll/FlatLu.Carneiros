@@ -68,6 +68,21 @@ export const CHARGE_KIND: Record<string, string> = {
   EXTRA: 'Extra'
 };
 
+/** De onde a pessoa veio (`crm_leads.origem_canal`). */
+export const ORIGEM_CANAL: Record<string, string> = {
+  META_ADS: 'Anúncio Meta',
+  INSTAGRAM: 'Instagram (orgânico)',
+  FACEBOOK: 'Facebook (orgânico)',
+  WHATSAPP: 'WhatsApp',
+  GOOGLE_ADS: 'Google Ads',
+  GOOGLE: 'Google (orgânico)',
+  SITE: 'Site (direto)',
+  INDICACAO: 'Indicação',
+  MANUAL: 'Cadastro manual',
+  OUTRO: 'Outro',
+  SEM_ORIGEM: 'Sem origem'
+};
+
 export const CRM_STAGE: Record<string, string> = {
   NEW: 'Novo',
   CONTACTED: 'Contatado',

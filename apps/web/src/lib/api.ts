@@ -129,7 +129,41 @@ const MESSAGES: Record<string, string> = {
   LEAD_NOT_FOUND: 'Card não encontrado.',
   RATE_PERIOD_NOT_FOUND: 'Período não encontrado.',
   PERIOD_OVERLAPS_EXISTING:
-    'Já existe um período ativo com essa prioridade nessas datas.'
+    'Já existe um período ativo com essa prioridade nessas datas.',
+
+  // Atendimento e Meta
+  WINDOW_CLOSED:
+    'Passaram 24h desde a última mensagem do cliente. Envie um modelo aprovado.',
+  MESSAGING_NOT_CONFIGURED:
+    'O envio por este canal ainda não foi configurado. Veja as variáveis META_* e WHATSAPP_*.',
+  CONVERSATION_NOT_FOUND: 'Conversa não encontrada.',
+  MESSAGE_NOT_FOUND: 'Mensagem não encontrada.',
+  MEDIA_NOT_FOUND: 'Mídia não encontrada.',
+  META_API_ERROR: 'A Meta recusou ou não respondeu. Detalhe gravado na mensagem.',
+  MESSAGE_SEND_FAILED: 'A mensagem não saiu. Tente de novo.',
+  FILE_TOO_LARGE: 'Arquivo acima de 4 MB. Para vídeo, use "Mídia por link".',
+  FILE_TYPE_NOT_ALLOWED: 'Tipo de arquivo não aceito. Use PDF, JPG, PNG, WEBP ou MP4.',
+  INVALID_UPLOAD: 'Não foi possível ler o arquivo.',
+  INSTAGRAM_NEEDS_MEDIA_URL: 'No Instagram Direct, anexo só por URL pública.',
+  TEMPLATE_WHATSAPP_ONLY: 'Modelos existem só no WhatsApp.',
+  SIMULATION_DISABLED: 'O simulador só funciona com WHATSAPP_PROVIDER=simulado.',
+  LEAD_WITHOUT_PHONE: 'Este lead não tem telefone cadastrado.',
+  META_IG_ACCOUNT_ID_REQUIRED: 'Informe o ID da conta do Instagram em Configurações › Integrações.',
+  META_ADS_NOT_CONFIGURED: 'Conecte a conta de anúncios em Configurações › Integrações.',
+  INSTAGRAM_NOT_CONFIGURED: 'Conecte o Instagram em Configurações › Integrações.',
+
+  // Configurações e agente de IA
+  INTEGRATIONS_KEY_MISSING:
+    'O servidor não tem INTEGRATIONS_ENCRYPTION_KEY: tokens só podem vir de variáveis de ambiente.',
+  INTEGRATION_SECRETS_UNREADABLE: 'Os tokens salvos não abrem com a chave atual. Digite-os de novo.',
+  AI_NOT_CONFIGURED: 'Falta a chave da API da Anthropic em Configurações › Agente de IA.',
+  AI_DISABLED: 'O agente de IA está desligado em Configurações.',
+  AI_NOTHING_TO_ANSWER: 'Não há mensagem do cliente para responder.',
+  AI_AUTH_FAILED: 'A Anthropic recusou a chave da API. Confira em Configurações.',
+  AI_RATE_LIMITED: 'Limite de uso da API atingido. Tente em instantes.',
+  AI_PROVIDER_ERROR: 'O agente de IA não respondeu agora. Tente de novo.',
+  MEDIA_WITHOUT_PROPERTY: 'Escolha o espaço da foto antes de torná-la capa.',
+  NO_PROPERTIES: 'Nenhum espaço ativo para classificar.'
 };
 
 export function messageFor(error: unknown): string {

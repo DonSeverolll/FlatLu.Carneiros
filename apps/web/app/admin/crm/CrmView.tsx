@@ -1,8 +1,9 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, messageFor } from '@/lib/api';
-import { CRM_STAGE, brl, shortDate } from '@/lib/format';
+import { CRM_STAGE, ORIGEM_CANAL, brl, shortDate } from '@/lib/format';
 
 type Lead = {
   archived_at?: string | null;
@@ -23,6 +24,12 @@ type Lead = {
   dono: string | null;
   atrasado: boolean;
   reservation_id: string | null;
+  origem_canal: string | null;
+  utm_source: string | null;
+  utm_campaign: string | null;
+  ad_id: string | null;
+  ad_name: string | null;
+  campaign_name: string | null;
 };
 
 type Atividade = {
@@ -41,6 +48,7 @@ const ORDEM = ['NEW', 'CONTACTED', 'QUOTED', 'NEGOTIATING', 'WON', 'LOST'];
  * depender de alguém lembrar de arrastar card.
  */
 export default function CrmView() {
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [porEstagio, setPorEstagio] = useState<{ stage: string; total: string; valor: string }[]>([]);
   const [soAtrasados, setSoAtrasados] = useState(false);
@@ -187,6 +195,19 @@ export default function CrmView() {
       setAtividades(dados.activities);
       (event.target as HTMLFormElement).reset();
       setMensagem('Registro adicionado.');
+    } catch (error) {
+      setMensagem(messageFor(error));
+    }
+  }
+
+  /** Abre (ou reabre) a conversa de WhatsApp do lead na Central de Atendimento. */
+  async function conversar(lead: Lead) {
+    try {
+      const r = await api<{ conversaId: string }>('/api/admin/atendimento/conversas', {
+        method: 'POST',
+        body: { leadId: lead.id }
+      });
+      router.push(`/admin/atendimento?c=${r.conversaId}`);
     } catch (error) {
       setMensagem(messageFor(error));
     }
@@ -404,8 +425,24 @@ export default function CrmView() {
                   <dd>{[leadAberto.email, leadAberto.phone].filter(Boolean).join(' · ') || '—'}</dd>
                 </div>
                 <div>
-                  <dt>Origem</dt>
+                  <dt>Entrada</dt>
                   <dd>{leadAberto.source}</dd>
+                </div>
+                <div>
+                  <dt>Origem</dt>
+                  <dd>
+                    {ORIGEM_CANAL[leadAberto.origem_canal ?? ''] ?? 'Não identificada'}
+                    {leadAberto.ad_id && (
+                      <small className="hint">
+                        {' '}
+                        {leadAberto.ad_name ?? `anúncio #${leadAberto.ad_id}`}
+                        {leadAberto.campaign_name ? ` · ${leadAberto.campaign_name}` : ''}
+                      </small>
+                    )}
+                    {!leadAberto.ad_id && leadAberto.utm_campaign && (
+                      <small className="hint"> {leadAberto.utm_source} / {leadAberto.utm_campaign}</small>
+                    )}
+                  </dd>
                 </div>
                 {leadAberto.lost_reason && (
                   <div>
@@ -414,6 +451,12 @@ export default function CrmView() {
                   </div>
                 )}
               </dl>
+
+              {leadAberto.phone && (
+                <button className="button button-small" onClick={() => void conversar(leadAberto)} type="button">
+                  Conversar no WhatsApp
+                </button>
+              )}
 
               <form onSubmit={registrarAtividade}>
                 <label>

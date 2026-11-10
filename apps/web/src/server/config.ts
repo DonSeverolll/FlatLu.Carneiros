@@ -48,6 +48,8 @@ export const config = {
   get cronSecret() {
     return required('CRON_SECRET', 16);
   }
+  // Credenciais da Meta, do WhatsApp e do agente de IA: integracoes/store.ts
+  // (painel primeiro, variável de ambiente como alternativa).
 };
 
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 15;

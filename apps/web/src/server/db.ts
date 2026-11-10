@@ -18,6 +18,16 @@ export function getPool(): Pool {
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 8_000
     });
+    /*
+     * Conexão OCIOSA derrubada do outro lado (pooler do Supabase reciclando,
+     * banco reiniciando) chega como evento `error` do pool. Sem ouvinte, o
+     * Node trata como exceção não capturada e derruba o processo inteiro — a
+     * próxima requisição pegaria uma instância morta. Com ele, o pool só
+     * descarta aquela conexão e abre outra quando precisar.
+     */
+    globalForPool.__carneirosPool.on('error', (error) => {
+      console.error('[db] conexão ociosa perdida; o pool vai abrir outra', error.message);
+    });
   }
   return globalForPool.__carneirosPool;
 }

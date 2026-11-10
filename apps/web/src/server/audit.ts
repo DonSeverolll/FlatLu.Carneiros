@@ -19,7 +19,8 @@ export type AuditEntity =
   | 'PROPERTY'
   | 'CONTRACT'
   | 'PAYMENT'
-  | 'SESSION';
+  | 'SESSION'
+  | 'INTEGRACAO';
 
 export type AuditInput = {
   actorUserId?: string | null;

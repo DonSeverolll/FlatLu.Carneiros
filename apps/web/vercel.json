@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/release-holds",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/meta-sync",
+      "schedule": "0 7 * * *"
     }
   ]
 }

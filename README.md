@@ -228,7 +228,7 @@ uma reserva antiga continua explicável depois que a tabela mudar.
 
 ## Painel administrativo
 
-`/admin`, com sidebar de seis seções:
+`/admin`, com sidebar (Atendimento e Marketing estão descritos na seção seguinte):
 
 | Seção | O que faz |
 |---|---|
@@ -248,6 +248,165 @@ separados. A comparação entre espaços é tabela com barra, não gráfico
 categórico: as cores das unidades reprovaram na validação de paleta (escuras e
 dessaturadas demais para servirem de marca de gráfico), então a identidade fica
 no rótulo e a cor só reforça.
+
+## Atendimento e marketing (Meta)
+
+Duas seções novas no painel, ambas em [`014_meta_e_atendimento.sql`](db/migrations/014_meta_e_atendimento.sql):
+
+| Seção | O que faz |
+|---|---|
+| **Atendimento** | Inbox único de WhatsApp e Instagram Direct: conversas à esquerda, chat ao centro, lead/origem/reserva à direita |
+| **Marketing** | Gasto por anúncio (Meta) cruzado com leads, reservas e dinheiro recebido (nosso banco) |
+
+### Atribuição
+
+Quem chega ao site com `utm_*`, `fbclid`, `gclid`, `ad_id`, `adset_id` ou
+`campaign_id` na URL gera um toque em `marketing_touches`, ligado a um cookie
+`httpOnly` de primeira parte. Na reserva, o card do CRM recebe o primeiro e o
+último toque dos últimos 90 dias e as colunas de origem (`origem_canal`,
+`ad_id`, `utm_campaign`...). No cadastro, os toques anônimos passam a apontar
+para a conta. Não guardamos IP nem user-agent.
+
+Conversa que nasce de anúncio click-to-WhatsApp ou click-to-Direct traz o
+`ad_id` no próprio webhook, e o lead já nasce atribuído.
+
+Nos anúncios, use em **Parâmetros de URL**:
+
+```
+utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&ad_id={{ad.id}}&adset_id={{adset.id}}&campaign_id={{campaign.id}}
+```
+
+### WhatsApp
+
+| `WHATSAPP_PROVIDER` | Comportamento |
+|---|---|
+| vazio | envio recusado com `MESSAGING_NOT_CONFIGURED` |
+| `simulado` | grava como enviada e libera o simulador no painel (contato novo, resposta, entregue/lida/falhou) |
+| `meta` | envia pela WhatsApp Cloud API |
+
+O simulador monta payloads no formato da Cloud API e os passa pelo mesmo
+caminho do webhook real — o que ele testa é o que vai para produção.
+
+Webhooks (mesmo app da Meta, mesmo `META_APP_SECRET` e `META_WEBHOOK_VERIFY_TOKEN`):
+
+- `https://SEU-DOMINIO/api/webhooks/whatsapp` — campo `messages`
+- `https://SEU-DOMINIO/api/webhooks/instagram` — campos `messages`, `messaging_seen`
+
+Regras que a tela já aplica: janela de 24h (fora dela só modelo aprovado no
+WhatsApp), status que só avança (lida não volta para entregue) e webhook
+idempotente pelo id da mensagem. Anexo pelo painel vai até 4 MB (limite do
+corpo no Vercel); vídeo do flat vai por URL pública.
+
+### Métricas de anúncios
+
+`POST /api/admin/marketing/sync` (botão "Sincronizar anúncios") e o cron
+diário `/api/cron/meta-sync` relêem os últimos 30 dias de insights por
+anúncio — a Meta reprocessa atribuição por semanas, então sobrescrever é o
+correto. Sem credencial, o cron sai com `skipped`.
+
+### Por que Graph API e não o "Meta MCP"
+
+Um servidor MCP é a interface para um agente de IA consultar a conta. O
+backend precisa de chamadas determinísticas, com timeout, paginação e erro
+tipado — isso é a Graph API. Os dois leem a mesma conta; ligar o MCP ao Claude
+para perguntas ad hoc ("qual anúncio teve o menor CPL?") continua possível.
+
+### RLS
+
+Desde a [`015`](db/migrations/015_rls_em_todas_as_tabelas.sql), **toda** tabela
+do schema `public` tem Row Level Security. Antes dela, no Supabase, a Data API
+deixava `users`, `user_sessions`, `landlords`, contratos e pagamentos legíveis
+para quem tivesse a chave `anon` — que é pública.
+
+- A aplicação não muda: ela conecta como **dona** das tabelas, e o dono não é
+  filtrado (não usamos `FORCE ROW LEVEL SECURITY`). Se um dia outro serviço
+  conectar com um usuário que não seja o dono — o `auth-service` Java, por
+  exemplo —, ele passa a ver zero linhas até ganhar política própria.
+- `anon` perdeu todo GRANT; `authenticated` também, exceto nas seis tabelas da
+  014, onde só um administrador ativo em `users` (por `auth.uid()`) lê e
+  responde. Este sistema não usa o Supabase Auth, então hoje isso não vale para
+  ninguém, que é o comportamento seguro.
+- Tabela nova criada pelo mesmo usuário já nasce sem GRANT para esses papéis,
+  mas a RLS dela tem de ser ligada na própria migração. O `npm run db:migrate`
+  avisa no fim quando alguma tabela do `public` ficar sem.
+
+## Configurações e agente de IA
+
+O botão **Configurações**, no rodapé do menu do painel, abre três abas:
+
+| Aba | O que faz |
+|---|---|
+| **Visão geral** | Tudo de que o site depende — banco, sessão, cron, tarifas, Pix, endereço, contrato, pagamento, integrações, RLS —, com o estado (configurado, falta, opcional) e onde se configura |
+| **Integrações** | App da Meta, WhatsApp, Instagram e anúncios: campos, passo a passo, URLs de webhook para copiar e "Testar conexão" |
+| **Agente de IA** | Modo, chave da API, modelo, instruções, limites e um teste com pergunta livre |
+
+### Credenciais: painel ou variável de ambiente
+
+Cada campo vale do painel primeiro e da variável de ambiente depois, um a um
+— quem já configurou pelo Vercel não perde nada. Tokens digitados no painel
+são gravados cifrados (AES-256-GCM, tabela `integracoes`) com a chave em
+`INTEGRATIONS_ENCRYPTION_KEY`, que nunca entra no banco. A tela e a API nunca
+devolvem um segredo: só se ele existe, de onde vem e os 4 últimos caracteres.
+Toda alteração vai para o Log com o nome do campo, nunca o valor.
+
+### Agente de IA
+
+Usa o Claude (`@anthropic-ai/sdk`) com duas ferramentas: consultar
+disponibilidade e preço (o mesmo motor de tarifas da reserva — não inventa
+valor) e transferir para humano. Não reserva, não cancela, não mexe em
+pagamento.
+
+| Modo | Comportamento |
+|---|---|
+| Desligado | nada |
+| Sugerir respostas | botão ✨ no Atendimento escreve um rascunho; o atendente revisa e envia |
+| Responder automaticamente | responde sozinho depois do webhook (`after()`), dentro da janela de 24h |
+
+Guardas do modo automático: espera 4 s para juntar mensagens seguidas; não
+responde se chegou mensagem mais nova; palavras configuradas (reembolso,
+cancelar…) transferem sem chamar o modelo; teto de respostas por conversa;
+opção de responder só fora do horário de atendimento. Quando um atendente
+responde, o agente pausa naquela conversa (dá para retomar na ficha). Cada
+chamada fica em `agente_execucoes`, com resultado e tokens.
+
+O modelo padrão é `claude-opus-5-5` com esforço baixo (conversa rápida). Opus
+e Sonnet vão com `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`):
+se o classificador de segurança recusar por engano, outro modelo refaz na
+mesma chamada. Haiku não tem esse recurso. Uma recusa que persiste não gera
+resposta — a conversa fica para a equipe.
+
+O teste da ferramenta de disponibilidade contra um banco real roda à parte:
+
+```bash
+E2E_DATABASE_URL=postgresql://... DATABASE_URL=postgresql://... DATABASE_SSL=false npx vitest run src/server/agente/disponibilidade.db.test.ts
+```
+
+## Catálogo de fotos (Instagram oficial)
+
+A página inicial mostra uma galeria por espaço (capa em destaque, visualizador
+em tela cheia com teclado e vídeo), e a capa do primeiro espaço substitui a
+foto genérica do topo. As fotos vêm da conta do Instagram conectada em
+Configurações › Integrações, pela API oficial — o token da Página precisa de
+`instagram_basic`.
+
+Fluxo em `/admin/catalogo`:
+
+1. **Sincronizar Instagram** lê os posts (carrossel vira uma foto por item) e
+   sugere o espaço pela legenda, com as palavras de cada espaço (editáveis ali
+   mesmo). Legenda que cita dois espaços, ou nenhum, fica sem sugestão.
+2. **✨ Sugerir espaço com IA** (opcional) manda cada foto pendente ao Claude
+   junto com até duas fotos já confirmadas de cada espaço, como referência, e
+   grava a sugestão e um texto alternativo. Usa a chave e o modelo do Agente
+   de IA; até 6 fotos por clique; consome créditos.
+3. **Revisão**: nada vai ao site sem um espaço confirmado. Ali se define capa
+   (uma por espaço), ordem, visibilidade e texto alternativo.
+
+As URLs de imagem da Meta expiram em dias; o cron diário (`/api/cron/meta-sync`)
+sincroniza de novo e as renova. Post apagado no Instagram sai do site na
+sincronização seguinte; a revisão feita no painel é mantida.
+
+Nos testes, `META_GRAPH_HOST=http://localhost:PORTA` aponta a Graph API para um
+simulador local — só fora de produção.
 
 ## Área do hóspede
 

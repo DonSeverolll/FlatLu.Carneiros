@@ -104,4 +104,23 @@ for (const filename of files) {
 }
 
 console.log(ran ? `\n${ran} migração(ões) aplicada(s).` : '\nBanco já está atualizado.');
+
+/*
+ * Toda tabela do schema public precisa de RLS (ver 015): no Supabase, tabela
+ * sem RLS fica legível pela chave `anon`, que é pública. O aviso existe para
+ * que uma migração nova que esqueça o ENABLE ROW LEVEL SECURITY seja vista no
+ * mesmo dia, e não por quem estiver varrendo a Data API.
+ */
+const semRls = await client.query(
+  `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity
+    ORDER BY 1`
+);
+if (semRls.rowCount) {
+  console.warn(
+    `\n! ${semRls.rowCount} tabela(s) sem Row Level Security: ` +
+      semRls.rows.map((row) => row.relname).join(', ') +
+      '\n  Ligue com ALTER TABLE ... ENABLE ROW LEVEL SECURITY numa nova migração.'
+  );
+}
 await client.end();
