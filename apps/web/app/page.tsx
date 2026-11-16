@@ -7,6 +7,7 @@ import { Perguntas, SiteFooter } from './SiteChrome';
 import { PAGINA_ALUGUEL, PAGINA_GUIA, caminhoDoEspaco, perguntasFrequentes, precoAPartirDe } from '@/server/seo/conteudo';
 import { jsonLdLista, jsonLdPerguntas, jsonLdSite } from '@/server/seo/jsonld';
 import { carregarCatalogo, carregarVitrine } from '@/server/seo/vitrine';
+import { registrarVisitaDoGoogle } from '@/server/seo/painel';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const { calendar, error, catalogo } = await carregarVitrine();
+  const [{ calendar, error, catalogo }] = await Promise.all([carregarVitrine(), registrarVisitaDoGoogle('/')]);
   const perguntas = perguntasFrequentes(calendar?.units ?? []);
   // A foto de abertura é a capa do primeiro espaço com catálogo; sem ela,
   // fica a imagem genérica do CSS.

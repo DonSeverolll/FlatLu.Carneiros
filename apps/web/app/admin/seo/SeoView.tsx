@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api, messageFor } from '@/lib/api';
+import { dateTime } from '@/lib/format';
 import {
   descreverFiltros,
   linkGoogle,
@@ -14,8 +17,28 @@ import {
   type SafeSearch
 } from '@/lib/buscaGoogle';
 
-type Links = { site: string; sitemap: string; robots: string; aluguel: string; guia: string; pdf: string };
-type Situacao = { dominioProprio: boolean; verificacaoGoogle: boolean; local: boolean };
+type Links = { site: string; sitemap: string; robots: string; searchConsole: string };
+type Situacao = { local: boolean; dominioProprio: boolean; verificacao: string | null; sitemapLidoEm: string | null };
+type Pagina = {
+  caminho: string;
+  url: string;
+  titulo: string;
+  tipo: string;
+  fotos: number;
+  videos: number;
+  ultimaVisitaGoogle: string | null;
+  visitas30d: number;
+};
+type Passo = {
+  id: string;
+  titulo: string;
+  como: string;
+  feito: boolean;
+  origem: 'manual' | 'automatico' | null;
+  quando: string | null;
+  quem: string | null;
+  detalhe: string | null;
+};
 
 function Copiar({ texto }: { texto: string }) {
   const [ok, setOk] = useState(false);
@@ -205,66 +228,196 @@ function Montador({ host }: { host: string }) {
   );
 }
 
+/** Passos fora do site, com marcação que fica salva (e registrada no Log). */
+function Passos({ passos }: { passos: Passo[] }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [erro, setErro] = useState('');
+  const feitos = passos.filter((p) => p.feito).length;
+
+  async function marcar(passo: Passo) {
+    setOcupado(passo.id);
+    setErro('');
+    try {
+      await api('/api/admin/seo/passos', {
+        method: 'POST',
+        body: { passo: passo.id, feito: !passo.feito }
+      });
+      router.refresh();
+    } catch (e) {
+      setErro(messageFor(e));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  return (
+    <section className="panel" aria-labelledby="passos-titulo">
+      <h2 id="passos-titulo">
+        Passos no Google <small className="hint">({feitos} de {passos.length} feitos)</small>
+      </h2>
+      <p className="hint">O que só pode ser feito fora do site. Marque quando concluir: fica salvo e aparece no Log.</p>
+      {erro && <p className="field-error">{erro}</p>}
+      <ul className="seo-passos-lista">
+        {passos.map((p) => (
+          <li className={p.feito ? 'feito' : ''} key={p.id}>
+            <span aria-hidden className="seo-passo-marca">
+              {p.feito ? '✓' : ''}
+            </span>
+            <div>
+              <strong>{p.titulo}</strong>
+              <span className="hint">
+                {p.feito
+                  ? p.origem === 'manual'
+                    ? `Marcado${p.quem ? ` por ${p.quem}` : ''}${p.quando ? ` em ${dateTime(p.quando)}` : ''}.`
+                    : `${p.detalhe ?? 'Comprovado pelo site.'}${p.quando ? ` Última leitura: ${dateTime(p.quando)}.` : ''}`
+                  : p.como}
+              </span>
+            </div>
+            <button className="chip" disabled={ocupado === p.id} onClick={() => void marcar(p)} type="button">
+              {ocupado === p.id ? '…' : p.feito ? 'Desmarcar' : 'Marcar como feito'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Paginas({ paginas, links }: { paginas: Pagina[]; links: Links }) {
+  return (
+    <section className="panel" aria-labelledby="paginas-titulo">
+      <h2 id="paginas-titulo">Páginas do site no Google</h2>
+      <p className="hint">
+        As {paginas.length} páginas que estão no{' '}
+        <a href={links.sitemap} rel="noreferrer" target="_blank">
+          sitemap.xml
+        </a>
+        . A visita do Google é registrada quando o robô dele abre a página.
+      </p>
+      <div className="seo-tabela-scroll">
+        <table className="data-table seo-tabela">
+          <thead>
+            <tr>
+              <th>Página</th>
+              <th>Fotos e vídeos</th>
+              <th>Última visita do Google</th>
+              <th>
+                <span className="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginas.map((p) => (
+              <tr key={p.caminho}>
+                <td>
+                  <a href={p.url} rel="noreferrer" target="_blank">
+                    {p.titulo}
+                  </a>
+                  <small>
+                    {p.tipo} · {p.caminho}
+                  </small>
+                </td>
+                <td>
+                  {p.fotos} foto(s){p.videos ? ` · ${p.videos} vídeo(s)` : ''}
+                </td>
+                <td>
+                  {p.ultimaVisitaGoogle ? (
+                    <>
+                      {dateTime(p.ultimaVisitaGoogle)}
+                      <small>{p.visitas30d} visita(s) em 30 dias</small>
+                    </>
+                  ) : (
+                    <span className="hint">Ainda não visitou</span>
+                  )}
+                </td>
+                <td>
+                  <a
+                    className="link"
+                    href={linkGoogle(`site:${p.url.replace(/^https?:\/\//, '')}`)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Está no Google?
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function SeoView({
   grupos,
   host,
   links,
+  paginas,
+  passos,
   situacao
 }: {
   grupos: GrupoBuscas[];
   host: string;
   links: Links;
+  paginas: Pagina[];
+  passos: Passo[];
   situacao: Situacao;
 }) {
   const itens: { ok: boolean; titulo: string; detalhe: React.ReactNode }[] = [
     {
       ok: !situacao.local,
-      titulo: 'Endereço público',
-      detalhe: situacao.dominioProprio
-        ? `O Google indexa ${links.site} (definido em SITE_URL).`
-        : situacao.local
-          ? 'Rodando local: o Google só enxerga o site publicado.'
-          : `Usando o endereço da Vercel (${host}). Com domínio próprio, defina SITE_URL e publique de novo.`
+      titulo: 'Endereço que o Google indexa',
+      detalhe: situacao.local ? (
+        'Rodando local: o Google só enxerga o site publicado.'
+      ) : (
+        <>
+          <a href={links.site} rel="noreferrer" target="_blank">
+            {host}
+          </a>
+          {situacao.dominioProprio ? ' (domínio próprio, via SITE_URL).' : ' (endereço da Vercel).'}
+        </>
+      )
     },
     {
-      ok: situacao.verificacaoGoogle,
-      titulo: 'Google Search Console',
-      detalhe: situacao.verificacaoGoogle
-        ? 'Meta tag de verificação publicada. Envie o sitemap no Search Console.'
-        : 'No Search Console, adicione o site como "Prefixo do URL", escolha "Tag HTML" e salve o código em GOOGLE_SITE_VERIFICATION na Vercel.'
+      ok: Boolean(situacao.verificacao),
+      titulo: 'Verificação do Search Console',
+      detalhe: situacao.verificacao ? (
+        <>
+          Tag HTML publicada (código {situacao.verificacao}).{' '}
+          <a href={links.searchConsole} rel="noreferrer" target="_blank">
+            Abrir o Search Console
+          </a>
+        </>
+      ) : (
+        'Sem tag de verificação: defina GOOGLE_SITE_VERIFICATION na Vercel e publique de novo.'
+      )
     },
     {
-      ok: true,
-      titulo: 'Sitemap e robots',
+      ok: Boolean(situacao.sitemapLidoEm),
+      titulo: 'Sitemap',
       detalhe: (
         <>
           <a href={links.sitemap} rel="noreferrer" target="_blank">
             sitemap.xml
           </a>{' '}
-          (páginas, fotos e vídeos) ·{' '}
-          <a href={links.robots} rel="noreferrer" target="_blank">
-            robots.txt
-          </a>{' '}
-          (painel e conta fora do índice)
+          com {paginas.length} páginas.{' '}
+          {situacao.sitemapLidoEm
+            ? `O Google leu pela última vez em ${dateTime(situacao.sitemapLidoEm)}.`
+            : 'O robô do Google ainda não foi visto lendo o sitemap (pode levar alguns dias depois do envio).'}
         </>
       )
     },
     {
       ok: true,
-      titulo: 'Páginas para busca',
+      titulo: 'Robots',
       detalhe: (
         <>
-          <a href={links.aluguel} rel="noreferrer" target="_blank">
-            Flat e apartamento para alugar em Carneiros
+          <a href={links.robots} rel="noreferrer" target="_blank">
+            robots.txt
           </a>{' '}
-          · uma página por espaço ·{' '}
-          <a href={links.guia} rel="noreferrer" target="_blank">
-            Guia da praia
-          </a>{' '}
-          ·{' '}
-          <a href={links.pdf} rel="noreferrer" target="_blank">
-            Guia em PDF
-          </a>
+          libera a vitrine e tira do índice o painel, a conta do hóspede, a API e o login.
         </>
       )
     }
@@ -289,21 +442,10 @@ export default function SeoView({
             </li>
           ))}
         </ul>
-        <h3>O que só você pode fazer (fora do site)</h3>
-        <ol className="seo-passos">
-          <li>
-            Search Console: confirme a verificação e envie <code>{links.sitemap}</code> em &quot;Sitemaps&quot;.
-            Depois use &quot;Inspeção de URL&quot; › &quot;Solicitar indexação&quot; na página inicial e na de aluguel.
-          </li>
-          <li>
-            Perfil da Empresa no Google (Google Maps): cadastre como hospedagem, com o link do site. É o que
-            faz aparecer no mapa para &quot;flat em Carneiros&quot;.
-          </li>
-          <li>Coloque o link do site na bio do Instagram e nas respostas do WhatsApp.</li>
-          <li>Peça avaliação no Google a cada hóspede depois do check-out.</li>
-          <li>Domínio próprio (.com.br no Registro.br) dá mais confiança e clique do que o endereço da Vercel.</li>
-        </ol>
       </section>
+
+      <Passos passos={passos} />
+      <Paginas links={links} paginas={paginas} />
 
       {grupos.map((g) => (
         <section aria-label={g.titulo} className="panel" key={g.titulo}>

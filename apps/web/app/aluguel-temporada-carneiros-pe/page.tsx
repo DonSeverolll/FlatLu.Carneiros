@@ -14,6 +14,7 @@ import {
 } from '@/server/seo/conteudo';
 import { jsonLdLista, jsonLdPerguntas, jsonLdTrilha } from '@/server/seo/jsonld';
 import { carregarVitrine, fotosDoEspaco } from '@/server/seo/vitrine';
+import { registrarVisitaDoGoogle } from '@/server/seo/painel';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
  * responde as dúvidas — conteúdo próprio, não uma cópia da vitrine.
  */
 export default async function AluguelCarneirosPage() {
-  const { calendar, catalogo } = await carregarVitrine();
+  const [{ calendar, catalogo }] = await Promise.all([carregarVitrine(), registrarVisitaDoGoogle(PAGINA_ALUGUEL)]);
   const units = calendar?.units ?? [];
   const perguntas = perguntasFrequentes(units);
   const trilha = [

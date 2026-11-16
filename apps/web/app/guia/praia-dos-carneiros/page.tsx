@@ -16,6 +16,7 @@ import {
 } from '@/server/seo/conteudo';
 import { jsonLdGuia, jsonLdTrilha } from '@/server/seo/jsonld';
 import { carregarCalendario } from '@/server/seo/vitrine';
+import { registrarVisitaDoGoogle } from '@/server/seo/painel';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
 };
 
 export default async function GuiaPage() {
-  const { calendar } = await carregarCalendario();
+  const [{ calendar }] = await Promise.all([carregarCalendario(), registrarVisitaDoGoogle(PAGINA_GUIA)]);
   const units = calendar?.units ?? [];
   const trilha = [
     { nome: 'Início', caminho: '/' },

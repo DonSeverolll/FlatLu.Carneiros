@@ -159,7 +159,10 @@ export const AUDIT_LABEL: Record<string, string> = {
   RATE_PERIOD_CREATED: 'Período especial criado',
   RATE_PERIOD_UPDATED: 'Período especial alterado',
   RATE_PERIOD_DELETED: 'Período especial removido',
-  UPDATED: 'Espaço atualizado'
+  UPDATED: 'Espaço atualizado',
+  SEO_PASSO_FEITO: 'Passo de SEO marcado como feito',
+  SEO_PASSO_DESFEITO: 'Passo de SEO desmarcado',
+  GOOGLE_VISITA: 'Robô do Google visitou uma página'
 };
 
 /** Eventos que merecem destaque visual no log. */
@@ -176,7 +179,8 @@ export const AUDIT_TONE: Record<string, 'good' | 'warn' | 'bad'> = {
   PAYMENT_PAID: 'good',
   PAYMENT_PARTIAL: 'good',
   SIGNED: 'good',
-  CREATED: 'good'
+  CREATED: 'good',
+  SEO_PASSO_FEITO: 'good'
 };
 
 export const ENTITY_LABEL: Record<string, string> = {
@@ -185,7 +189,8 @@ export const ENTITY_LABEL: Record<string, string> = {
   PROPERTY: 'Espaço',
   CONTRACT: 'Contrato',
   PAYMENT: 'Pagamento',
-  SESSION: 'Acesso'
+  SESSION: 'Acesso',
+  SEO: 'SEO'
 };
 
 /** Data e hora completas, para o log — onde a ordem dos fatos importa. */
