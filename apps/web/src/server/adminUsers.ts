@@ -144,6 +144,11 @@ export async function resetUserPassword(
   actorId: string,
   input: z.infer<typeof passwordResetSchema>
 ) {
+  // A própria senha passa por /api/auth/password, que confere a senha atual e
+  // mantém esta sessão. Por aqui, um admin com a tela aberta no computador de
+  // outra pessoa trocaria a senha dele sem saber a atual — e ainda se deslogaria.
+  if (targetId === actorId) throw badRequest('USE_OWN_PASSWORD_FORM');
+
   const hash = await hashPassword(input.newPassword);
 
   return transaction(async (client) => {
