@@ -740,3 +740,18 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .seo-form input, .seo-form select { min-width: 0; width: 100%; }
 .seo-form .check-inline { align-self: end; display: inline-flex; padding-bottom: 12px; }
 .seo-form .check-inline input { width: auto; }
+.sr-only { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; width: 1px; }
+.seo-passos-lista { display: grid; gap: 10px; list-style: none; margin: 12px 0 0; padding: 0; }
+.seo-passos-lista li { align-items: center; border: 1px solid rgba(23,63,69,.12); border-radius: 8px; display: grid; gap: 12px; grid-template-columns: 26px minmax(0, 1fr) auto; padding: 10px 12px; }
+.seo-passos-lista li.feito { background: rgba(46,111,78,.06); border-color: rgba(46,111,78,.25); }
+.seo-passos-lista li > div { display: grid; gap: 2px; min-width: 0; }
+.seo-passos-lista .hint { margin: 0; }
+.seo-passo-marca { align-items: center; border: 1.5px solid rgba(23,63,69,.3); border-radius: 50%; color: #fff; display: inline-flex; font-size: 14px; height: 24px; justify-content: center; width: 24px; }
+.seo-passos-lista li.feito .seo-passo-marca { background: #2E6F4E; border-color: #2E6F4E; }
+.seo-tabela-scroll { max-width: 100%; overflow-x: auto; }
+.seo-tabela td a:not(.link) { border-bottom: 1px solid transparent; color: var(--ink); }
+.seo-tabela td a:not(.link):hover { border-bottom-color: currentColor; }
+@media (max-width: 600px) {
+  .seo-passos-lista li { grid-template-columns: 26px minmax(0, 1fr); }
+  .seo-passos-lista li .chip { grid-column: 2; justify-self: start; }
+}

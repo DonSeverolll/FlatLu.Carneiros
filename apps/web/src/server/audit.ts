@@ -20,7 +20,8 @@ export type AuditEntity =
   | 'CONTRACT'
   | 'PAYMENT'
   | 'SESSION'
-  | 'INTEGRACAO';
+  | 'INTEGRACAO'
+  | 'SEO';
 
 export type AuditInput = {
   actorUserId?: string | null;

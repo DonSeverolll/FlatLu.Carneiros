@@ -5,12 +5,14 @@ import {
   GUIA_RESUMO,
   GUIA_TITULO,
   PAGINA_ALUGUEL,
+  PDF_GUIA,
   caminhoDoEspaco,
   precoAPartirDe,
   tituloDoEspaco
 } from '@/server/seo/conteudo';
 import { gerarPdf, type BlocoPdf } from '@/server/seo/pdf';
 import { carregarCalendario } from '@/server/seo/vitrine';
+import { registrarVisitaDoGoogle } from '@/server/seo/painel';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +21,7 @@ export const dynamic = 'force-dynamic';
  * mandar no grupo da viagem), coloca o site nas buscas `filetype:pdf`.
  */
 export async function GET() {
-  const { calendar } = await carregarCalendario();
+  const [{ calendar }] = await Promise.all([carregarCalendario(), registrarVisitaDoGoogle(PDF_GUIA)]);
   const blocos: BlocoPdf[] = [
     { tipo: 'titulo', texto: GUIA_TITULO },
     { tipo: 'pequeno', texto: `Atualizado em ${CONTEUDO_ATUALIZADO_EM.split('-').reverse().join('/')} · ${absoluteUrl('/')}` },

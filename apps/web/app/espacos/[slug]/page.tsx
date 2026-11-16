@@ -16,6 +16,7 @@ import {
 } from '@/server/seo/conteudo';
 import { jsonLdEspaco, jsonLdPerguntas, jsonLdTrilha, jsonLdVideos } from '@/server/seo/jsonld';
 import { carregarVitrine, fotosDoEspaco } from '@/server/seo/vitrine';
+import { registrarVisitaDoGoogle } from '@/server/seo/painel';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function EspacoPage({ params }: Props) {
   const { slug } = await params;
-  const { calendar, catalogo, unit, fotos } = await carregar(slug);
+  const [{ calendar, catalogo, unit, fotos }] = await Promise.all([
+    carregar(slug),
+    registrarVisitaDoGoogle(caminhoDoEspaco(slug))
+  ]);
   // Sem banco não dá para saber se o espaço existe: 404 só quando o calendário
   // respondeu e o espaço não está nele.
   if (calendar && !unit) notFound();
