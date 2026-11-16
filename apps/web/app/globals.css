@@ -680,3 +680,63 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .palavras { align-items: flex-end; display: flex; flex-wrap: wrap; gap: 10px; }
 .palavras label { flex: 1 1 260px; margin: 6px 0 0; }
 .palavras input { font-size: 13px; padding: 9px 10px; }
+
+/* ---------------------------------------------------------------------------
+ * SEO: páginas de busca (espaço, aluguel, guia), perguntas, rodapé e painel.
+ * ------------------------------------------------------------------------- */
+.nav a.nav-brand { border-bottom: 0; display: inline; font-size: 12px; font-weight: 700; letter-spacing: .12em; padding: 0; }
+.tagline { color: var(--muted); font-family: 'Playfair Display', serif; font-size: clamp(20px, 2.4vw, 28px); font-style: italic; margin: -6px 0 14px; }
+.seo-page { margin: 0 auto; max-width: 980px; padding: 48px 6vw; }
+.seo-page h1 { font-size: clamp(38px, 5.4vw, 72px); }
+.seo-page h2 { font-size: clamp(28px, 3.6vw, 44px); }
+.seo-page h3 { font-size: 20px; margin: 10px 0 6px; }
+.seo-page p, .seo-page li { line-height: 1.65; }
+.seo-page ul.amenities { list-style: none; padding: 0; }
+.seo-page ul.amenities li { border: 1px solid rgba(23,63,69,.25); font-size: 13px; padding: 9px 12px; }
+.seo-facts { margin-bottom: 18px; }
+.seo-cards { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.seo-card { background: #fffaf2; display: grid; gap: 6px; min-width: 0; padding: 0 0 18px; }
+.seo-card > *:not(img) { margin-left: 18px; margin-right: 18px; }
+.seo-card img { aspect-ratio: 4 / 3; display: block; object-fit: cover; width: 100%; }
+.seo-card h3 a { border-bottom: 1px solid transparent; }
+.seo-card h3 a:hover { border-bottom-color: currentColor; }
+.seo-lista { padding-left: 20px; }
+.seo-outros ul { padding-left: 20px; }
+.seo-page a:not(.button):not(.link) { border-bottom: 1px solid currentColor; }
+.trilha { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.trilha a { border-bottom: 1px solid currentColor; }
+.guia section { margin-top: 28px; }
+.guia-indice ol { columns: 2; padding-left: 20px; }
+.faq { margin: 0 auto; max-width: 980px; padding: 40px 6vw; }
+.faq h2 { font-size: clamp(28px, 3.6vw, 44px); }
+.faq details { border-bottom: 1px solid rgba(23,63,69,.15); padding: 14px 0; }
+.faq summary { cursor: pointer; font-size: 17px; font-weight: 600; }
+.faq details p { color: var(--muted); line-height: 1.6; margin: 10px 0 0; }
+.site-footer-seo { align-items: flex-start; flex-wrap: wrap; gap: 24px; }
+.site-footer-seo > div { display: grid; gap: 6px; max-width: 340px; }
+.site-footer-seo ul { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+@media (max-width: 760px) {
+  .seo-page, .faq { padding: 32px 6vw; }
+  .guia-indice ol { columns: 1; }
+  .site-footer-seo { flex-direction: column; }
+}
+
+.seo-situacao { display: grid; gap: 10px; list-style: none; margin: 0 0 18px; padding: 0; }
+.seo-situacao li { border-left: 3px solid #2E6F4E; display: grid; gap: 2px; padding: 4px 0 4px 12px; }
+.seo-situacao li.aviso { border-left-color: var(--coral); }
+.seo-situacao span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.seo-situacao a { border-bottom: 1px solid currentColor; }
+.seo-passos { color: var(--muted); font-size: 14px; line-height: 1.6; padding-left: 20px; }
+.seo-buscas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.seo-busca { background: rgba(23,63,69,.04); border-radius: 8px; display: grid; gap: 6px; min-width: 0; padding: 14px; }
+.seo-busca h3 { font-size: 15px; margin: 0; }
+.seo-busca .hint { margin: 0; }
+.seo-query { background: #fffaf2; border: 1px solid rgba(23,63,69,.15); border-radius: 6px; font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; padding: 10px; white-space: pre-wrap; }
+.seo-filtros { color: var(--muted); font-size: 12px; margin: 0; padding-left: 18px; }
+.seo-busca .row-actions, .panel > .row-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.seo-busca .button.small { margin-top: 0; }
+.seo-form { display: grid; gap: 12px 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); margin: 12px 0; }
+.seo-form label { display: grid; font-size: 13px; gap: 6px; min-width: 0; }
+.seo-form input, .seo-form select { min-width: 0; width: 100%; }
+.seo-form .check-inline { align-self: end; display: inline-flex; padding-bottom: 12px; }
+.seo-form .check-inline input { width: auto; }

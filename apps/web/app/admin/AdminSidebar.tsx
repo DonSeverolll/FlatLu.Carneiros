@@ -14,6 +14,7 @@ const ITEMS = [
   { href: '/admin/crm', label: 'CRM', hint: 'Funil de oportunidades' },
   { href: '/admin/marketing', label: 'Marketing', hint: 'Anúncios, origem e retorno' },
   { href: '/admin/catalogo', label: 'Catálogo', hint: 'Fotos do Instagram por espaço' },
+  { href: '/admin/seo', label: 'SEO', hint: 'Google: buscas e indexação' },
   { href: '/admin/clientes', label: 'Clientes', hint: 'Histórico e pagamentos' },
   { href: '/admin/agenda', label: 'Agenda', hint: 'Chegadas, saídas e bloqueios' },
   { href: '/admin/usuarios', label: 'Usuários', hint: 'Acessos e senhas' },

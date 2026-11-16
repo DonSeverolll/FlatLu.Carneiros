@@ -1,9 +1,13 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import AdminSidebar from './AdminSidebar';
 import { requireAdmin } from '@/server/auth';
 import { listUnits } from '@/server/units';
 
 export const dynamic = 'force-dynamic';
+
+/** O painel nunca entra no Google, mesmo que alguém publique um link dele. */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Casca do painel. A autorização é verificada aqui e de novo em cada rota

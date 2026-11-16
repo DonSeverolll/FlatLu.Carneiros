@@ -25,13 +25,24 @@ function nightsBetween(checkIn: string, checkOut: string): number {
  * espaço, seleção de datas e orçamento. O preço nunca é calculado aqui — vem
  * de `/quote`, que é a mesma função que a reserva usa para gravar o valor.
  */
-export default function BookingWidget({ calendar }: { calendar: UnitCalendarDto }) {
+export default function BookingWidget({
+  calendar,
+  initialUnit
+}: {
+  calendar: UnitCalendarDto;
+  /** Na página de um espaço, o calendário já abre nele. */
+  initialUnit?: string;
+}) {
   const router = useRouter();
   const [units, setUnits] = useState<UnitDto[]>(calendar.units);
   const [visible, setVisible] = useState<Set<string>>(
     () => new Set(calendar.units.map((unit) => unit.slug))
   );
-  const [selectedUnit, setSelectedUnit] = useState(calendar.units[0]?.slug ?? '');
+  const [selectedUnit, setSelectedUnit] = useState(
+    calendar.units.some((unit) => unit.slug === initialUnit)
+      ? initialUnit!
+      : (calendar.units[0]?.slug ?? '')
+  );
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   /**

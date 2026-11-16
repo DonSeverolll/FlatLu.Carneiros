@@ -6,6 +6,17 @@ import type { CatalogoEspaco } from '@/server/catalogo/catalogo';
 const VISIVEIS = 5;
 
 /**
+ * Texto alternativo da foto. É o que o Google Imagens lê, então leva o espaço e
+ * o lugar: "Flat Carneiros para alugar — Praia de Carneiros, Tamandaré — PE".
+ */
+function textoAlternativo(espaco: CatalogoEspaco, descricao: string | null, indice: number): string {
+  const lugar = espaco.local ? ` — ${espaco.local}` : '';
+  return descricao
+    ? `${descricao} (${espaco.nome} para alugar${lugar})`
+    : `${espaco.nome} para alugar${lugar}, foto ${indice + 1}`;
+}
+
+/**
  * Catálogo por espaço na vitrine: capa grande + algumas fotos, e um visualizador
  * em tela cheia com teclado (← → Esc). As imagens vêm do Instagram oficial e
  * só aparecem as que um administrador confirmou para aquele espaço.
@@ -86,7 +97,7 @@ export default function CatalogoEspacos({ espacos, conta }: { espacos: CatalogoE
             type="button"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={f.descricao ?? `${espaco.nome}, foto ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} referrerPolicy="no-referrer" src={f.miniatura} />
+            <img alt={textoAlternativo(espaco, f.descricao, i)} loading={i === 0 ? 'eager' : 'lazy'} referrerPolicy="no-referrer" src={f.miniatura} />
             {f.tipo === 'VIDEO' && <span className="catalogo-play" aria-hidden>▶</span>}
             {i === VISIVEIS - 1 && espaco.fotos.length > VISIVEIS && (
               <span className="catalogo-mais">+{espaco.fotos.length - VISIVEIS} fotos</span>
@@ -109,7 +120,7 @@ export default function CatalogoEspacos({ espacos, conta }: { espacos: CatalogoE
               <video autoPlay controls playsInline poster={foto.miniatura} src={foto.url} />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img alt={foto.descricao ?? espacos[aberta.espaco]!.nome} referrerPolicy="no-referrer" src={foto.url} />
+              <img alt={textoAlternativo(espacos[aberta.espaco]!, foto.descricao, aberta.foto)} referrerPolicy="no-referrer" src={foto.url} />
             )}
             <figcaption>
               {espacos[aberta.espaco]!.nome} · {aberta.foto + 1}/{espacos[aberta.espaco]!.fotos.length}
