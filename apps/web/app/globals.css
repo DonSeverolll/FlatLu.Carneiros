@@ -297,8 +297,11 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .avatar { align-items: center; background: rgba(23,63,69,.1); border-radius: 50%; display: flex; font-size: 15px; font-weight: 600; height: 38px; justify-content: center; overflow: hidden; width: 38px; }
 .avatar img { height: 100%; object-fit: cover; width: 100%; }
 .user-form { border-bottom: 1px solid rgba(23,63,69,.1); padding: 6px 6px 20px; }
-.password-reveal { align-items: center; background: rgba(46,111,78,.1); display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; padding: 12px; }
-.password-reveal code { font-size: 15px; letter-spacing: .04em; }
+.password-form { background: rgba(23,63,69,.04); border-radius: 8px; margin: 6px 0 10px; padding: 14px; }
+.password-form-title { color: var(--ink, #173F45); font-weight: 600; margin: 0 0 12px; }
+.password-form-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+.check-inline { align-items: center; display: inline-flex; gap: 8px; margin: 0; }
+.field-error { color: #8C1D18; font-size: 12px; margin: 0; }
 .panel h2.sub { font-size: 20px; margin-top: 30px; }
 .kanban { display: grid; gap: 10px; grid-template-columns: repeat(6, minmax(150px, 1fr)); margin-bottom: 22px; overflow-x: auto; }
 .kanban-col { background: #fffaf2; padding: 14px 12px; }

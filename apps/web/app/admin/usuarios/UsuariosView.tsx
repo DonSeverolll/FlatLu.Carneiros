@@ -26,14 +26,180 @@ function sugerirSenha(): string {
   return [...bytes].map((n) => alfabeto[n % alfabeto.length]).join('');
 }
 
+const MIN_SENHA = 12;
+
+/**
+ * Definir a próxima senha de uma conta.
+ *
+ * - Outra pessoa: o admin escolhe a senha (ou pede uma sugestão) e todas as
+ *   sessões dela caem — ela entra de novo já com a senha nova.
+ * - A própria conta: exige a senha atual e mantém esta sessão aberta; as
+ *   outras sessões caem.
+ */
+function FormularioSenha({
+  usuario,
+  propria,
+  onConcluir,
+  onCancelar
+}: {
+  usuario: Usuario;
+  propria: boolean;
+  onConcluir: (mensagem: string) => void;
+  onCancelar: () => void;
+}) {
+  const [atual, setAtual] = useState('');
+  const [nova, setNova] = useState('');
+  const [repetida, setRepetida] = useState('');
+  const [mostrar, setMostrar] = useState(false);
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  const curta = nova.length > 0 && nova.length < MIN_SENHA;
+  const diferente = repetida.length > 0 && repetida !== nova;
+  const pronta =
+    nova.length >= MIN_SENHA && repetida === nova && (!propria || atual.length > 0) && !enviando;
+
+  function gerar() {
+    const sugestao = sugerirSenha();
+    setNova(sugestao);
+    setRepetida(sugestao);
+    setMostrar(true);
+    setErro('');
+  }
+
+  async function enviar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pronta) return;
+    if (propria && atual === nova) {
+      setErro('A senha nova precisa ser diferente da atual.');
+      return;
+    }
+    setEnviando(true);
+    setErro('');
+    try {
+      const resultado = propria
+        ? await api<{ revokedSessions: number }>('/api/auth/password', {
+            method: 'POST',
+            body: { currentPassword: atual, newPassword: nova }
+          })
+        : await api<{ revokedSessions: number }>(`/api/admin/users/${usuario.id}/password`, {
+            method: 'POST',
+            body: { newPassword: nova }
+          });
+      onConcluir(
+        propria
+          ? `Sua senha foi trocada. Você continua conectado aqui; ${resultado.revokedSessions} outra(s) sessão(ões) encerrada(s).`
+          : `Senha de ${usuario.full_name} trocada. ${resultado.revokedSessions} sessão(ões) encerrada(s): ` +
+              `a pessoa entra de novo com a senha nova.`
+      );
+    } catch (error) {
+      setErro(messageFor(error));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const tipo = mostrar ? 'text' : 'password';
+
+  return (
+    <form className="user-form password-form" onSubmit={(event) => void enviar(event)}>
+      <p className="password-form-title">
+        {propria ? 'Trocar a minha senha' : `Próxima senha de ${usuario.full_name}`}
+      </p>
+      <div className="rate-grid">
+        {propria && (
+          <label>
+            Senha atual
+            <input
+              autoComplete="current-password"
+              onChange={(e) => setAtual(e.target.value)}
+              required
+              type="password"
+              value={atual}
+            />
+          </label>
+        )}
+        <label>
+          Nova senha
+          <input
+            aria-invalid={curta || undefined}
+            autoComplete="new-password"
+            maxLength={200}
+            minLength={MIN_SENHA}
+            onChange={(e) => setNova(e.target.value)}
+            required
+            type={tipo}
+            value={nova}
+          />
+          <small className={curta ? 'field-error' : 'hint'}>
+            {curta ? `Faltam ${MIN_SENHA - nova.length} caractere(s).` : `Mínimo de ${MIN_SENHA} caracteres.`}
+          </small>
+        </label>
+        <label>
+          Repetir a nova senha
+          <input
+            aria-invalid={diferente || undefined}
+            autoComplete="new-password"
+            maxLength={200}
+            onChange={(e) => setRepetida(e.target.value)}
+            required
+            type={tipo}
+            value={repetida}
+          />
+          {diferente && <small className="field-error">As duas senhas não são iguais.</small>}
+        </label>
+      </div>
+      <div className="password-form-actions">
+        <label className="check-inline">
+          <input checked={mostrar} onChange={(e) => setMostrar(e.target.checked)} type="checkbox" />
+          Mostrar senha
+        </label>
+        <button className="text-button" onClick={gerar} type="button">
+          Gerar uma sugestão
+        </button>
+        {mostrar && nova && (
+          <button className="text-button" onClick={() => void navigator.clipboard.writeText(nova)} type="button">
+            Copiar
+          </button>
+        )}
+      </div>
+      {erro && (
+        <p className="field-error" role="alert">
+          {erro}
+        </p>
+      )}
+      <div className="password-form-actions">
+        <button className="button button-small" disabled={!pronta} type="submit">
+          {enviando ? 'Salvando...' : 'Salvar senha nova'}
+        </button>
+        <button className="text-button" onClick={onCancelar} type="button">
+          Cancelar
+        </button>
+      </div>
+      <p className="hint">
+        {propria
+          ? 'Você continua conectado neste aparelho. Nos outros, vai precisar entrar de novo com a senha nova.'
+          : 'Todas as sessões dessa pessoa são encerradas na hora. Repasse a senha por um canal seguro.'}
+      </p>
+    </form>
+  );
+}
+
 export default function UsuariosView() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [papel, setPapel] = useState<'' | 'ADMIN' | 'CUSTOMER'>('');
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<string | null>(null);
-  const [senhaGerada, setSenhaGerada] = useState<{ id: string; senha: string } | null>(null);
+  const [trocandoSenha, setTrocandoSenha] = useState<string | null>(null);
+  const [meuId, setMeuId] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('Carregando usuários...');
   const [ocupado, setOcupado] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ user: { id: string } }>('/api/auth/me')
+      .then((dados) => setMeuId(dados.user.id))
+      .catch(() => setMeuId(null));
+  }, []);
 
   const carregar = useCallback(async () => {
     try {
@@ -78,33 +244,6 @@ export default function UsuariosView() {
     }
   }
 
-  async function redefinirSenha(usuario: Usuario) {
-    const senha = sugerirSenha();
-    const confirmado = window.confirm(
-      `Definir uma senha nova para ${usuario.full_name}?\n\n` +
-        `A senha aparecerá na tela para você repassar. Todas as sessões dessa pessoa ` +
-        `serão encerradas.`
-    );
-    if (!confirmado) return;
-
-    setOcupado(usuario.id);
-    try {
-      const resultado = await api<{ revokedSessions: number }>(
-        `/api/admin/users/${usuario.id}/password`,
-        { method: 'POST', body: { newPassword: senha } }
-      );
-      setSenhaGerada({ id: usuario.id, senha });
-      setMensagem(
-        `Senha redefinida. ${resultado.revokedSessions} sessão(ões) encerrada(s). ` +
-          `Copie agora: ela não é exibida de novo.`
-      );
-      await carregar();
-    } catch (error) {
-      setMensagem(messageFor(error));
-    } finally {
-      setOcupado(null);
-    }
-  }
 
   return (
     <>
@@ -174,27 +313,33 @@ export default function UsuariosView() {
                     {editando === usuario.id ? 'Fechar' : 'Configurações'}
                   </button>
                   <button
+                    aria-expanded={trocandoSenha === usuario.id}
                     className="text-button"
                     disabled={ocupado === usuario.id}
-                    onClick={() => void redefinirSenha(usuario)}
+                    onClick={() => setTrocandoSenha(trocandoSenha === usuario.id ? null : usuario.id)}
                     type="button"
                   >
-                    Redefinir senha
+                    {trocandoSenha === usuario.id
+                      ? 'Fechar senha'
+                      : usuario.id === meuId
+                        ? 'Trocar minha senha'
+                        : 'Definir nova senha'}
                   </button>
                 </span>
               </div>
 
-              {senhaGerada?.id === usuario.id && (
-                <p className="password-reveal">
-                  Senha nova de {usuario.full_name}: <code>{senhaGerada.senha}</code>
-                  <button
-                    className="text-button"
-                    onClick={() => void navigator.clipboard.writeText(senhaGerada.senha)}
-                    type="button"
-                  >
-                    Copiar
-                  </button>
-                </p>
+              {trocandoSenha === usuario.id && (
+                <FormularioSenha
+                  key={usuario.id}
+                  onCancelar={() => setTrocandoSenha(null)}
+                  onConcluir={(texto) => {
+                    setTrocandoSenha(null);
+                    setMensagem(texto);
+                    void carregar();
+                  }}
+                  propria={usuario.id === meuId}
+                  usuario={usuario}
+                />
               )}
 
               {editando === usuario.id && (

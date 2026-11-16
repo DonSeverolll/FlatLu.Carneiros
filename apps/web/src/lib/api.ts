@@ -96,6 +96,7 @@ const MESSAGES: Record<string, string> = {
   CROSS_ORIGIN_BLOCKED: 'Requisição bloqueada por segurança. Recarregue a página.',
   REFRESH_RACE: 'Sessão sendo renovada. Tente de novo em instantes.',
   REFRESH_TOKEN_REUSED: 'Sua sessão foi encerrada por segurança. Entre novamente.',
+  SESSION_REVOKED: 'Sua sessão foi encerrada. Entre novamente.',
   SESSION_EXPIRED: 'Sua sessão expirou. Entre novamente.',
   INTERNAL_ERROR: 'Algo deu errado do nosso lado. Tente novamente.',
 
@@ -121,6 +122,7 @@ const MESSAGES: Record<string, string> = {
 
   // Conta e painel
   CURRENT_PASSWORD_INVALID: 'Senha atual incorreta.',
+  USE_OWN_PASSWORD_FORM: 'Para trocar a sua própria senha, informe a senha atual.',
   CANNOT_DEMOTE_SELF: 'Você não pode rebaixar nem suspender a própria conta.',
   USERNAME_ALREADY_TAKEN: 'Este nome de usuário já está em uso.',
   USERNAME_INVALID: 'Use de 3 a 80 caracteres: letras, números ou _.',

@@ -147,6 +147,16 @@ export async function rotateSession(context: { ip?: string | null; userAgent?: s
     if (session.revoked_reason === 'ROTATED' && session.just_rotated) {
       throw unauthorized('REFRESH_RACE');
     }
+    /*
+     * Só um token ROTACIONADO reaparecendo prova vazamento. Uma sessão que
+     * caiu por troca de senha, logout ou suspensão vai reaparecer sempre que o
+     * outro aparelho tentar renovar — derrubar tudo aí deslogaria justamente
+     * quem acabou de trocar a senha, no aparelho que ela está usando.
+     */
+    if (session.revoked_reason !== 'ROTATED') {
+      await clearSessionCookies();
+      throw unauthorized('SESSION_REVOKED');
+    }
     await query(
       `UPDATE user_sessions SET revoked_at = now(), revoked_reason = 'REUSE_DETECTED'
        WHERE user_id = $1 AND revoked_at IS NULL`,
