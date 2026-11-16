@@ -408,6 +408,46 @@ sincronização seguinte; a revisão feita no painel é mantida.
 Nos testes, `META_GRAPH_HOST=http://localhost:PORTA` aponta a Graph API para um
 simulador local — só fora de produção.
 
+## SEO: aparecer no Google
+
+O objetivo é que quem busca **"flat para alugar em Carneiros PE"**, **"apartamento para alugar em Carneiros"** ou **"casa de temporada em São José da Coroa Grande"** encontre o site.
+
+### O que o site já entrega ao Google
+
+| Página / arquivo | Para quê |
+| --- | --- |
+| `/` | A vitrine. O H1 é "Flat para alugar na Praia dos Carneiros", com JSON-LD `WebSite`, `ItemList` e `FAQPage`. |
+| `/espacos/[slug]` | Uma página por espaço, com título "… para alugar na Praia de Carneiros, Tamandaré — PE". Mostra preço "a partir de", fotos, vídeos e o calendário já aberto no espaço. JSON-LD `LodgingBusiness` com oferta, trilha e perguntas. |
+| `/aluguel-temporada-carneiros-pe` | Página de entrada para "flat e apartamento para alugar em Carneiros". Tem a URL com a busca (`inurl:`) e o título com a busca (`intitle:`). |
+| `/guia/praia-dos-carneiros` | Guia da região como artigo datado (`datePublished`/`dateModified`), o que conta para os filtros `after:`/`before:`. |
+| `/guia/praia-dos-carneiros.pdf` | O mesmo guia em PDF, para as buscas `filetype:pdf`. Gerado na hora, sem dependência. |
+| `/sitemap.xml` | Todas as páginas, com as fotos aprovadas no catálogo (aba Imagens) e os vídeos (aba Vídeos). |
+| `/robots.txt` | Libera a vitrine. Deixa fora do índice `/admin`, `/api`, `/conta`, `/reserva`, `/login` e `/cadastro`. |
+
+Os textos e as perguntas frequentes saem dos dados reais: capacidade, horários, preço mínimo e sinal. Mudar a tarifa no painel muda o que o Google lê. As fotos do catálogo ganharam texto alternativo com o espaço e o lugar.
+
+### Painel › SEO (`/admin/seo`)
+
+- **Situação:** domínio, verificação do Search Console, sitemap e robots.
+- **Buscas prontas**, com os operadores (`site:`, `inurl:`, `intitle:`, `filetype:`, `""`, `OR`, `-`, `after:`) e os filtros da interface: aba, período, "Ao pé da letra" e SafeSearch. Cada uma abre o Google já configurada. Elas respondem a quatro perguntas:
+  - o site foi indexado?
+  - em que posição aparecemos?
+  - o que a concorrência anuncia?
+  - quem fala de nós?
+- **Montador de busca avançada:** para qualquer outra pesquisa.
+
+### O que precisa ser feito fora do código
+
+1. **Google Search Console**:
+   - adicione a propriedade como "Prefixo do URL" e escolha "Tag HTML";
+   - salve o valor de `content` em `GOOGLE_SITE_VERIFICATION` na Vercel e publique de novo;
+   - clique em "Verificar" e envie `https://SEU-DOMINIO/sitemap.xml` em "Sitemaps".
+2. **Perfil da Empresa no Google** (Google Maps), como hospedagem e com o link do site.
+3. **Domínio próprio**: defina `SITE_URL` e publique de novo. Canonical, sitemap e links passam a usar o novo endereço.
+4. **Links do Instagram e do WhatsApp para o site**, além de avaliações de hóspedes no Google.
+
+As abas Shopping e Notícias não aceitam cadastro só por código. Hospedagem no Shopping/Hotéis passa pelo programa de parceiros do Google Hotel Center. Notícias exige que o site seja um veículo de notícias.
+
 ## Área do hóspede
 
 Depois do cadastro, uma gaveta acessível de qualquer página do site: foto,

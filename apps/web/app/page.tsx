@@ -1,9 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import BookingWidget from './BookingWidget';
 import CatalogoEspacos from './CatalogoEspacos';
-import { catalogoPublico, type CatalogoEspaco } from '@/server/catalogo/catalogo';
-import { unitCalendar } from '@/server/units';
-import type { UnitCalendarDto } from '@/lib/types';
+import JsonLd from './JsonLd';
+import { Perguntas, SiteFooter } from './SiteChrome';
+import { PAGINA_ALUGUEL, PAGINA_GUIA, caminhoDoEspaco, perguntasFrequentes, precoAPartirDe } from '@/server/seo/conteudo';
+import { jsonLdLista, jsonLdPerguntas, jsonLdSite } from '@/server/seo/jsonld';
+import { carregarCatalogo, carregarVitrine } from '@/server/seo/vitrine';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,31 +16,21 @@ export const dynamic = 'force-dynamic';
  * estiver indisponível, a página continua no ar em modo degradado — apresentar
  * os espaços não depende da infraestrutura de reservas.
  */
-async function loadCalendar(): Promise<{ calendar: UnitCalendarDto | null; error: string | null }> {
-  try {
-    const calendar = await unitCalendar();
-    if (!calendar.units.length) {
-      return { calendar: null, error: 'Nenhum espaço publicado no momento.' };
-    }
-    return { calendar: calendar as UnitCalendarDto, error: null };
-  } catch (error) {
-    console.error('[showcase]', error);
-    return { calendar: null, error: 'Calendário temporariamente indisponível.' };
-  }
-}
-
-/** Catálogo é enfeite: se falhar, a vitrine segue sem ele. */
-async function loadCatalogo(): Promise<{ espacos: CatalogoEspaco[]; conta: string | null }> {
-  try {
-    return await catalogoPublico();
-  } catch (error) {
-    console.error('[catalogo]', error);
-    return { espacos: [], conta: null };
-  }
+export async function generateMetadata(): Promise<Metadata> {
+  // A foto de capa vira a imagem do link compartilhado (WhatsApp, Instagram).
+  const catalogo = await carregarCatalogo();
+  const capa = catalogo.espacos[0]?.fotos.find((f) => f.capa && f.tipo === 'IMAGE');
+  return {
+    alternates: { canonical: '/' },
+    ...(capa
+      ? { openGraph: { images: [{ url: capa.url, alt: capa.descricao ?? 'Flat para alugar na Praia dos Carneiros' }] } }
+      : {})
+  };
 }
 
 export default async function HomePage() {
-  const [{ calendar, error }, catalogo] = await Promise.all([loadCalendar(), loadCatalogo()]);
+  const { calendar, error, catalogo } = await carregarVitrine();
+  const perguntas = perguntasFrequentes(calendar?.units ?? []);
   // A foto de abertura é a capa do primeiro espaço com catálogo; sem ela,
   // fica a imagem genérica do CSS.
   const capa = catalogo.espacos[0]?.fotos.find((f) => f.capa && f.tipo === 'IMAGE') ?? null;
@@ -53,18 +46,23 @@ export default async function HomePage() {
 
   return (
     <main>
+      <JsonLd
+        data={[jsonLdSite(), calendar ? jsonLdLista(calendar.units) : null, jsonLdPerguntas(perguntas)].filter(Boolean)}
+      />
       <nav className="nav">
         <strong>APT CARNEIROS · FLAT &amp; CASA</strong>
         <span className="nav-links">
           {catalogo.espacos.length > 0 && <a href="#espacos">Fotos dos espaços</a>}
+          <Link href={PAGINA_GUIA}>Guia da praia</Link>
           <a href="#reserva">Consultar datas</a>
         </span>
       </nav>
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Praia de Carneiros e São José da Coroa Grande</p>
-          <h1>Seu intervalo entre o mar e o tempo.</h1>
+          <p className="eyebrow">Aluguel de temporada · Carneiros e São José da Coroa Grande — PE</p>
+          <h1>Flat para alugar na Praia dos Carneiros.</h1>
+          <p className="tagline">Seu intervalo entre o mar e o tempo.</p>
           <p className="lead">
             Três espaços independentes no litoral sul de Pernambuco: o flat na Praia de Carneiros e
             os dois andares da casa em São José da Coroa Grande, cada um com entrada própria.
@@ -103,9 +101,13 @@ export default async function HomePage() {
               {calendar.units.map((unit) => (
                 <div key={unit.slug}>
                   <dt>
-                    <i className="unit-dot" style={{ background: unit.color }} /> {unit.shortName}
+                    <i className="unit-dot" style={{ background: unit.color }} />{' '}
+                    <Link href={caminhoDoEspaco(unit.slug)}>{unit.shortName}</Link>
                   </dt>
-                  <dd>até {unit.maxGuests} pessoas</dd>
+                  <dd>
+                    até {unit.maxGuests} pessoas
+                    {precoAPartirDe(unit) ? ` · a partir de ${precoAPartirDe(unit)}` : ''}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -151,10 +153,11 @@ export default async function HomePage() {
         )}
       </section>
 
-      <footer className="site-footer">
-        <span>Apt Carneiros · Praia de Carneiros e São José da Coroa Grande — PE</span>
-        <Link href="/login">Área do hóspede</Link>
-      </footer>
+      <Perguntas perguntas={perguntas} />
+      <p className="seo-page hint">
+        Compare os espaços em <Link href={PAGINA_ALUGUEL}>flat e apartamento para alugar em Carneiros</Link>.
+      </p>
+      <SiteFooter espacos={calendar?.units ?? []} />
     </main>
   );
 }
