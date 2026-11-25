@@ -1,3 +1,4 @@
+import ComFerramenta from '../ComFerramenta';
 import SeoView from './SeoView';
 import { absoluteUrl, siteHost, siteUrl } from '@/lib/site';
 import { buscasProntas } from '@/lib/buscaGoogle';
@@ -27,6 +28,7 @@ export default async function Page() {
   });
 
   return (
+    <ComFerramenta chave="seo">
     <SeoView
       grupos={buscasProntas(host)}
       host={host}
@@ -57,5 +59,6 @@ export default async function Page() {
         sitemapLidoEm
       }}
     />
+    </ComFerramenta>
   );
 }

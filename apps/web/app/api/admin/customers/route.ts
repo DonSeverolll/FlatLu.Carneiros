@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { customerListSchema, listCustomers } from '@/server/adminCustomers';
 import { handle, json, parseQuery } from '@/server/http';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('clientes');
     return json(await listCustomers(parseQuery(request, customerListSchema)));
   });
 }

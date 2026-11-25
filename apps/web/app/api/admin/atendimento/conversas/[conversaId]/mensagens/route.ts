@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { enviarMensagem, enviarSchema } from '@/server/atendimento/inbox';
 
@@ -18,7 +18,7 @@ const params = z.object({ conversaId: z.string().uuid() });
 export async function POST(request: Request, ctx: { params: Promise<{ conversaId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('atendimento', 'crm');
     const { conversaId } = params.parse(await ctx.params);
     const input = await parseBody(request, enviarSchema);
     const resultado = await enviarMensagem(conversaId, session.id, input);

@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { notFound } from '@/server/errors';
 import { handle } from '@/server/http';
 import { baixarMidiaWhatsApp } from '@/server/atendimento/gateway';
@@ -17,7 +17,7 @@ const params = z.object({ mensagemId: z.string().uuid() });
  */
 export async function GET(_request: Request, ctx: { params: Promise<{ mensagemId: string }> }) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('atendimento', 'crm');
     const { mensagemId } = params.parse(await ctx.params);
     const m = await midiaDaMensagem(mensagemId);
     if (m.midia_id_provedor && !m.midia_id_provedor.startsWith('sim-')) {

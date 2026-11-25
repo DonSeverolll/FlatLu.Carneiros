@@ -1,7 +1,12 @@
+import ComFerramenta from '../ComFerramenta';
 import CrmView from './CrmView';
 
 export const dynamic = 'force-dynamic';
 
 export default function Page() {
-  return <CrmView />;
+  return (
+    <ComFerramenta chave="crm">
+      <CrmView />
+    </ComFerramenta>
+  );
 }

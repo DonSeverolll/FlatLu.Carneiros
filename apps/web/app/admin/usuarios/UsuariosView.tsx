@@ -10,6 +10,8 @@ type Usuario = {
   email: string;
   phone: string | null;
   role: 'ADMIN' | 'CUSTOMER';
+  /** Só vem preenchido para a conta Dev. */
+  is_dev?: boolean;
   status: string;
   avatar_url: string | null;
   created_at: string;
@@ -185,7 +187,7 @@ function FormularioSenha({
   );
 }
 
-export default function UsuariosView() {
+export default function UsuariosView({ souDev = false }: { souDev?: boolean }) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [papel, setPapel] = useState<'' | 'ADMIN' | 'CUSTOMER'>('');
   const [busca, setBusca] = useState('');
@@ -299,7 +301,7 @@ export default function UsuariosView() {
                 </span>
                 <span className="customer-stats">
                   <em className={usuario.role === 'ADMIN' ? 'tag good' : 'tag'}>
-                    {usuario.role === 'ADMIN' ? 'Administrador' : 'Cliente'}
+                    {souDev && usuario.is_dev ? 'Dev' : usuario.role === 'ADMIN' ? 'Administrador' : 'Cliente'}
                   </em>
                   {usuario.status !== 'ACTIVE' && <em className="tag bad">{usuario.status}</em>}
                   <small>{usuario.sessoes_ativas} sessão(ões) ativa(s)</small>

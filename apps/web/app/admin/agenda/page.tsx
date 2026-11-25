@@ -1,3 +1,4 @@
+import ComFerramenta from '../ComFerramenta';
 import AgendaView from './AgendaView';
 import { listUnits } from '@/server/units';
 
@@ -9,5 +10,9 @@ export default async function Page() {
     shortName: unit.short_name ?? unit.name,
     color: unit.color ?? '#1F3A5F'
   }));
-  return <AgendaView units={units} />;
+  return (
+    <ComFerramenta chave="agenda">
+      <AgendaView units={units} />
+    </ComFerramenta>
+  );
 }

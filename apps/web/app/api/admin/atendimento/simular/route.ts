@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { after } from 'next/server';
-import { requireAdmin } from '@/server/auth';
 import { responderPendentes } from '@/server/agente/agente';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { assertSimulado } from '@/server/atendimento/inbox';
@@ -14,7 +14,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    await requireAdmin();
+    await requireFerramenta('atendimento', 'crm');
     await assertSimulado();
     const input = await parseBody(request, simularSchema);
     const { resumo, conversasComEntrada } = await simular(input);

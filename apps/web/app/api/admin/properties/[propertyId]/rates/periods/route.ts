@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { createRatePeriod, listRatePeriods, ratePeriodSchema } from '@/server/rateStore';
 import { query } from '@/server/db';
@@ -11,7 +11,7 @@ const params = z.object({ propertyId: z.string().uuid() });
 
 export async function GET(_request: Request, ctx: { params: Promise<{ propertyId: string }> }) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('menu');
     const { propertyId } = params.parse(await ctx.params);
     return json({ periods: await listRatePeriods(propertyId) });
   });
@@ -20,7 +20,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ propertyId
 export async function POST(request: Request, ctx: { params: Promise<{ propertyId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('menu');
     const { propertyId } = params.parse(await ctx.params);
     const input = await parseBody(request, ratePeriodSchema);
     const period = await createRatePeriod(propertyId, input);

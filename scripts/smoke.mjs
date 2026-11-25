@@ -135,7 +135,7 @@ try {
   // apagar a tabela de preços real.
 
   console.log('\n--- 2. admin publica tarifa e Pix');
-  await db.query(`update users set role = 'ADMIN' where email = $1`, [guest.email]);
+  await db.query(`update users set role = 'ADMIN', ferramentas = array['menu','dashboard','atendimento','crm','marketing','catalogo','seo','clientes','agenda','usuarios','log','configuracoes'] where email = $1`, [guest.email]);
   const a = session();
   r = await a.call('/api/auth/login', { method: 'POST', body: { identifier: guest.email, password: guest.password } });
   check('login por e-mail funciona', r.status === 200 && r.json?.user?.role === 'ADMIN', r.json?.user?.role);
@@ -534,6 +534,22 @@ try {
   check('CUSTOMER recebe 403 no painel admin', r.status === 403, `${r.status} ${r.json?.error}`);
   r = await rv.call(`/api/reservations/${reservation.id}`);
   check('CUSTOMER não lê reserva de outro', r.status === 404, `${r.status} ${r.json?.error}`);
+
+  // Acesso por ferramenta: o admin só abre o que estiver liberado para ele, e a
+  // área Dev responde como inexistente para quem não é a conta Dev.
+  const adm = session();
+  r = await adm.call('/api/auth/login', { method: 'POST', body: { identifier: guest.email, password: guest.password } });
+  check('admin entra de novo', r.status === 200, `${r.status} ${r.json?.error}`);
+  r = await adm.call('/api/admin/dev/acessos');
+  check('área Dev responde 404 para admin comum', r.status === 404, `${r.status} ${r.json?.error}`);
+  await db.query(`update users set ferramentas = array['menu'] where email = $1`, [guest.email]);
+  r = await adm.call('/api/admin/reservations?from=2026-01-01&to=2027-01-01');
+  check('ferramenta bloqueada recusa a API na hora', r.status === 403 && r.json?.error === 'FERRAMENTA_BLOQUEADA', `${r.status} ${r.json?.error}`);
+  r = await adm.call(`/api/admin/properties/${propertyId}`, { method: 'PATCH', body: { minNights: 1 } });
+  check('ferramenta liberada continua funcionando', r.status === 200, `${r.status} ${r.json?.error}`);
+  await db.query(`update users set ferramentas = array['menu','dashboard','atendimento','crm','marketing','catalogo','seo','clientes','agenda','usuarios','log','configuracoes'] where email = $1`, [guest.email]);
+  r = await adm.call('/api/admin/reservations?from=2026-01-01&to=2027-01-01');
+  check('liberar de novo vale na hora', r.status === 200, `${r.status} ${r.json?.error}`);
 
   const events = (await db.query(
     `select event_type from audit_events where entity_id = $1 order by created_at`, [reservation.id])).rows.map(r => r.event_type);

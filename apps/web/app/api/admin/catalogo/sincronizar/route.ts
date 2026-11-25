@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { recordAudit } from '@/server/audit';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json } from '@/server/http';
 import { sincronizarCatalogo } from '@/server/catalogo/catalogo';
 
@@ -11,7 +11,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('catalogo');
     const resultado = await sincronizarCatalogo();
     await recordAudit({ actorUserId: session.id, entityType: 'INTEGRACAO', eventType: 'CATALOGO_SINCRONIZADO', metadata: resultado });
     return json(resultado);

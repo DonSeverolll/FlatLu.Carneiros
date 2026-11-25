@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { badRequest } from '@/server/errors';
 import { assertSameOrigin, handle, json } from '@/server/http';
 import { uploadMidiaWhatsApp } from '@/server/atendimento/gateway';
@@ -25,7 +25,7 @@ const ACEITOS: Record<string, string> = {
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    await requireAdmin();
+    await requireFerramenta('atendimento', 'crm');
 
     let form: FormData;
     try {
