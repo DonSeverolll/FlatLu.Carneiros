@@ -21,7 +21,8 @@ export type AuditEntity =
   | 'PAYMENT'
   | 'SESSION'
   | 'INTEGRACAO'
-  | 'SEO';
+  | 'SEO'
+  | 'DEV';
 
 export type AuditInput = {
   actorUserId?: string | null;

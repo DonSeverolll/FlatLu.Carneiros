@@ -4,24 +4,24 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { AREA_DEV, FERRAMENTAS, type Ferramenta } from '@/lib/ferramentas';
 
 type Unit = { slug: string; shortName: string; color: string };
 
-const ITEMS = [
-  { href: '/admin', label: 'Menu', hint: 'Tarifas, Pix e bloqueios' },
-  { href: '/admin/dashboard', label: 'Dashboard', hint: 'Vendas e ocupação' },
-  { href: '/admin/atendimento', label: 'Atendimento', hint: 'WhatsApp e Instagram Direct' },
-  { href: '/admin/crm', label: 'CRM', hint: 'Funil de oportunidades' },
-  { href: '/admin/marketing', label: 'Marketing', hint: 'Anúncios, origem e retorno' },
-  { href: '/admin/catalogo', label: 'Catálogo', hint: 'Fotos do Instagram por espaço' },
-  { href: '/admin/seo', label: 'SEO', hint: 'Google: buscas e indexação' },
-  { href: '/admin/clientes', label: 'Clientes', hint: 'Histórico e pagamentos' },
-  { href: '/admin/agenda', label: 'Agenda', hint: 'Chegadas, saídas e bloqueios' },
-  { href: '/admin/usuarios', label: 'Usuários', hint: 'Acessos e senhas' },
-  { href: '/admin/log', label: 'Log', hint: 'Tudo que aconteceu no site' }
-];
+// Configurações fica no rodapé da barra; as outras ferramentas, na lista.
+const ITEMS = FERRAMENTAS.filter((f) => f.chave !== 'configuracoes');
 
-export default function AdminSidebar({ units }: { units: Unit[] }) {
+export default function AdminSidebar({
+  units,
+  ferramentas,
+  dev
+}: {
+  units: Unit[];
+  /** Só o que está liberado para a conta aparece. */
+  ferramentas: Ferramenta[];
+  dev: boolean;
+}) {
+  const liberada = (chave: Ferramenta) => ferramentas.includes(chave);
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export default function AdminSidebar({ units }: { units: Unit[] }) {
         </div>
 
         <ul className="sidebar-nav">
-          {ITEMS.map((item) => {
+          {ITEMS.filter((item) => liberada(item.chave)).map((item) => {
             // `/admin` casaria com tudo; só ele exige igualdade exata.
             const active =
               item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
@@ -66,7 +66,7 @@ export default function AdminSidebar({ units }: { units: Unit[] }) {
                   href={item.href}
                   onClick={() => setOpen(false)}
                 >
-                  <span>{item.label}</span>
+                  <span>{item.rotulo}</span>
                   <small>{item.hint}</small>
                 </Link>
               </li>
@@ -87,6 +87,18 @@ export default function AdminSidebar({ units }: { units: Unit[] }) {
         )}
 
         <div className="sidebar-foot">
+          {dev && (
+            <Link
+              aria-current={pathname.startsWith(AREA_DEV) ? 'page' : undefined}
+              className={pathname.startsWith(AREA_DEV) ? 'sidebar-link on' : 'sidebar-link'}
+              href={AREA_DEV}
+              onClick={() => setOpen(false)}
+            >
+              <span>Dev</span>
+              <small>Liberar ferramentas para os donos</small>
+            </Link>
+          )}
+          {liberada('configuracoes') && (
           <Link
             aria-current={pathname.startsWith('/admin/configuracoes') ? 'page' : undefined}
             className={
@@ -109,6 +121,7 @@ export default function AdminSidebar({ units }: { units: Unit[] }) {
             </span>
             <small>Ferramentas, integrações e IA</small>
           </Link>
+          )}
           <Link className="sidebar-link" href="/">
             <span>Ver o site</span>
           </Link>

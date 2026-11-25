@@ -77,22 +77,25 @@ const WHERE_EVENTOS = `
     AND ($4::uuid IS NULL OR a.actor_user_id = $4)
     AND ($5::date IS NULL OR a.created_at >= $5::date)
     AND ($6::date IS NULL OR a.created_at < ($6::date + 1))
+    AND ($7::boolean OR a.entity_type <> 'DEV')
 `;
 
-export async function listAuditEvents(input: z.infer<typeof auditListSchema>) {
+/** `verDev`: eventos da área Dev só aparecem para a própria conta Dev. */
+export async function listAuditEvents(input: z.infer<typeof auditListSchema>, verDev = false) {
   const filtros = [
     input.search ? `%${input.search.toLowerCase()}%` : null,
     input.eventType ?? null,
     input.entityType ?? null,
     input.actor ?? null,
     input.from ?? null,
-    input.to ?? null
+    input.to ?? null,
+    verDev
   ];
 
   const eventos = await query(
     `${SELECT_EVENTOS} ${WHERE_EVENTOS}
      ORDER BY a.created_at DESC
-     LIMIT $7 OFFSET $8`,
+     LIMIT $8 OFFSET $9`,
     [...filtros, input.limit, input.offset]
   );
 
@@ -107,7 +110,9 @@ export async function listAuditEvents(input: z.infer<typeof auditListSchema>) {
   // lista fixa que envelhece toda vez que um evento novo passa a ser gravado.
   const tipos = await query<{ event_type: string; total: string }>(
     `SELECT event_type, COUNT(*)::text AS total
-       FROM audit_events GROUP BY event_type ORDER BY event_type`
+       FROM audit_events WHERE $1::boolean OR entity_type <> 'DEV'
+      GROUP BY event_type ORDER BY event_type`,
+    [verDev]
   );
 
   const autores = await query<{ id: string; full_name: string; username: string | null }>(

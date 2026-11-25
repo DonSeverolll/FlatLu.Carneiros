@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { dashboard, dashboardSchema } from '@/server/adminDashboard';
 import { handle, json, parseQuery } from '@/server/http';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('dashboard');
     return json(await dashboard(parseQuery(request, dashboardSchema)));
   });
 }

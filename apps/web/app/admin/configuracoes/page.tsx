@@ -1,7 +1,12 @@
+import ComFerramenta from '../ComFerramenta';
 import ConfiguracoesView from './ConfiguracoesView';
 
 export const dynamic = 'force-dynamic';
 
 export default function Page() {
-  return <ConfiguracoesView />;
+  return (
+    <ComFerramenta chave="configuracoes">
+      <ConfiguracoesView />
+    </ComFerramenta>
+  );
 }

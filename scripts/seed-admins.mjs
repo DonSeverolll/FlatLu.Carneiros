@@ -85,8 +85,11 @@ try {
   for (const admin of admins) {
     const passwordHash = await hash(admin.password);
     const result = await client.query(
-      `INSERT INTO users (username, email, password_hash, full_name, role)
-       VALUES ($1, $2, $3, $1, 'ADMIN')
+      `INSERT INTO users (username, email, password_hash, full_name, role, ferramentas)
+       VALUES ($1, $2, $3, $1, 'ADMIN',
+               -- Conta nova começa com tudo; numa já existente, quem decide é o Dev.
+               ARRAY['menu','dashboard','atendimento','crm','marketing','catalogo',
+                     'seo','clientes','agenda','usuarios','log','configuracoes'])
        ON CONFLICT (email) WHERE deleted_at IS NULL
        DO UPDATE SET username = EXCLUDED.username,
                      password_hash = EXCLUDED.password_hash,

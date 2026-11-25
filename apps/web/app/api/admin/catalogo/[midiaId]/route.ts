@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { atualizarMidia, atualizarMidiaSchema } from '@/server/catalogo/catalogo';
 
@@ -12,7 +12,7 @@ const params = z.object({ midiaId: z.string().uuid() });
 export async function PATCH(request: Request, ctx: { params: Promise<{ midiaId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    await requireAdmin();
+    await requireFerramenta('catalogo');
     const { midiaId } = params.parse(await ctx.params);
     return json(await atualizarMidia(midiaId, await parseBody(request, atualizarMidiaSchema)));
   });

@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { confirmPaymentSchema, settlePayment } from '@/server/payment';
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request, ctx: { params: Promise<{ reservationId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('agenda', 'clientes');
     const { reservationId } = z.object({ reservationId: z.string().uuid() }).parse(await ctx.params);
     const input = await parseBody(request, confirmPaymentSchema);
     const result = await settlePayment({

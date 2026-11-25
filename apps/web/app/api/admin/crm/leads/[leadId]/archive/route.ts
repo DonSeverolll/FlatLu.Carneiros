@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { archiveLead, unarchiveLead } from '@/server/crm';
 import { assertSameOrigin, handle, json } from '@/server/http';
 
@@ -12,7 +12,7 @@ const params = z.object({ leadId: z.string().uuid() });
 export async function POST(request: Request, ctx: { params: Promise<{ leadId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('crm');
     const { leadId } = params.parse(await ctx.params);
     return json({ archived: await archiveLead(leadId, session.id) });
   });
@@ -22,7 +22,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ leadId: st
 export async function DELETE(request: Request, ctx: { params: Promise<{ leadId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('crm');
     const { leadId } = params.parse(await ctx.params);
     return json({ restored: await unarchiveLead(leadId, session.id) });
   });

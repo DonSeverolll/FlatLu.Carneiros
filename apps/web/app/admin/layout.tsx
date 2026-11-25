@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import AdminSidebar from './AdminSidebar';
-import { requireAdmin } from '@/server/auth';
+import { acessoAtual, type Acesso } from '@/server/acesso';
 import { listUnits } from '@/server/units';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,9 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * quem não deveria vê-lo, mas quem protege o dado é a API.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  let acesso: Acesso;
   try {
-    await requireAdmin();
+    acesso = await acessoAtual();
   } catch {
     return (
       <main className="account">
@@ -50,7 +51,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="admin-shell">
-      <AdminSidebar units={units} />
+      <AdminSidebar dev={acesso.dev} ferramentas={acesso.ferramentas} units={units} />
       <div className="admin-content">{children}</div>
     </div>
   );

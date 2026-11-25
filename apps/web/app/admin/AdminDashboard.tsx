@@ -24,7 +24,14 @@ export type UnitSummary = {
  * Menu: configuração dos espaços. A lista de reservas vive na Agenda — tê-la
  * nos dois lugares só criaria duas verdades sobre o mesmo dado.
  */
-export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
+export default function AdminDashboard({
+  units,
+  verDashboard = true
+}: {
+  units: UnitSummary[];
+  /** Atalho para o Dashboard só aparece se ele estiver liberado. */
+  verDashboard?: boolean;
+}) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedSlug, setSelectedSlug] = useState(units[0]?.slug ?? '');
@@ -98,9 +105,11 @@ export default function AdminDashboard({ units }: { units: UnitSummary[] }) {
           <p className="eyebrow">Menu</p>
           <h1>Configuração dos espaços.</h1>
         </div>
-        <Link className="link" href="/admin/dashboard">
-          Ver indicadores
-        </Link>
+        {verDashboard && (
+          <Link className="link" href="/admin/dashboard">
+            Ver indicadores
+          </Link>
+        )}
       </header>
 
       {pending.length > 0 && (

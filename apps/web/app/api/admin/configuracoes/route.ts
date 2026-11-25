@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { handle, json } from '@/server/http';
 import { diagnostico } from '@/server/configuracoes/diagnostico';
 import { descreverIntegracoes } from '@/server/integracoes/store';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 /** Tudo que a tela de Configurações precisa: diagnóstico + integrações. */
 export async function GET(request: Request) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('configuracoes');
     const origem = new URL(request.url).origin;
     const [grupos, integracoes] = await Promise.all([diagnostico(), descreverIntegracoes()]);
     return json({

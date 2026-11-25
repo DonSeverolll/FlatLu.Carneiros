@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { assertSameOrigin, handle, json } from '@/server/http';
 import { classificarComIA } from '@/server/catalogo/catalogo';
 
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    await requireAdmin();
+    await requireFerramenta('catalogo');
     return json(await classificarComIA());
   });
 }

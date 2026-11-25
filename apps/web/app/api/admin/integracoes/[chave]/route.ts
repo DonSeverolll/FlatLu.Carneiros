@@ -1,6 +1,6 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
 import { recordAudit } from '@/server/audit';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { CHAVES } from '@/server/integracoes/catalogo';
 import { removerIntegracao, salvarIntegracao, salvarSchema } from '@/server/integracoes/store';
@@ -15,7 +15,7 @@ type Ctx = { params: Promise<{ chave: string }> };
 export async function PUT(request: Request, ctx: Ctx) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('configuracoes');
     const { chave } = params.parse(await ctx.params);
     const input = await parseBody(request, salvarSchema);
     const r = await salvarIntegracao(chave, input, session.id);
@@ -34,7 +34,7 @@ export async function PUT(request: Request, ctx: Ctx) {
 export async function DELETE(request: Request, ctx: Ctx) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('configuracoes');
     const { chave } = params.parse(await ctx.params);
     await removerIntegracao(chave);
     await recordAudit({

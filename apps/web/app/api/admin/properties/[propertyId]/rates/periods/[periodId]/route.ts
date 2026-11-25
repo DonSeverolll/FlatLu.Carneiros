@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json } from '@/server/http';
 import { deleteRatePeriod } from '@/server/rateStore';
 import { query } from '@/server/db';
@@ -15,7 +15,7 @@ export async function DELETE(
 ) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('menu');
     const { propertyId, periodId } = params.parse(await ctx.params);
     const period = await deleteRatePeriod(propertyId, periodId);
     await query(

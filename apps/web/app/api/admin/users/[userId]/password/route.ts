@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { passwordResetSchema, resetUserPassword } from '@/server/adminUsers';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 
@@ -16,9 +16,9 @@ const params = z.object({ userId: z.string().uuid() });
 export async function POST(request: Request, ctx: { params: Promise<{ userId: string }> }) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('usuarios');
     const { userId } = params.parse(await ctx.params);
     const input = await parseBody(request, passwordResetSchema);
-    return json(await resetUserPassword(userId, session.id, input));
+    return json(await resetUserPassword(userId, session.id, input, session.dev));
   });
 }

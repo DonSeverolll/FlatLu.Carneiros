@@ -1,7 +1,12 @@
+import ComFerramenta from '../ComFerramenta';
 import MarketingView from './MarketingView';
 
 export const dynamic = 'force-dynamic';
 
 export default function Page() {
-  return <MarketingView />;
+  return (
+    <ComFerramenta chave="marketing">
+      <MarketingView />
+    </ComFerramenta>
+  );
 }

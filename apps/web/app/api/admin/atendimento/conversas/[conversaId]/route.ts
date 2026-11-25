@@ -1,5 +1,5 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import {
   atualizarConversa,
@@ -22,7 +22,7 @@ type Ctx = { params: Promise<{ conversaId: string }> };
  */
 export async function GET(request: Request, ctx: Ctx) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('atendimento', 'crm');
     const { conversaId } = params.parse(await ctx.params);
     const desde = new URL(request.url).searchParams.get('desde');
     if (desde) {
@@ -36,7 +36,7 @@ export async function GET(request: Request, ctx: Ctx) {
 export async function PATCH(request: Request, ctx: Ctx) {
   return handle(async () => {
     assertSameOrigin(request);
-    await requireAdmin();
+    await requireFerramenta('atendimento', 'crm');
     const { conversaId } = params.parse(await ctx.params);
     const input = await parseBody(request, atualizarSchema);
     return json({ conversa: await atualizarConversa(conversaId, input) });

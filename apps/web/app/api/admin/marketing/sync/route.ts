@@ -1,6 +1,6 @@
+import { requireFerramenta } from '@/server/acesso';
 import { z } from 'zod';
 import { recordAudit } from '@/server/audit';
-import { requireAdmin } from '@/server/auth';
 import { assertSameOrigin, handle, json, parseBody } from '@/server/http';
 import { importarConversasInstagram, sincronizarAnuncios } from '@/server/meta/ads';
 
@@ -17,7 +17,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('marketing');
     const input = await parseBody(request, schema);
     const resultado =
       input.escopo === 'anuncios'

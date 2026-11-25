@@ -162,7 +162,8 @@ export const AUDIT_LABEL: Record<string, string> = {
   UPDATED: 'Espaço atualizado',
   SEO_PASSO_FEITO: 'Passo de SEO marcado como feito',
   SEO_PASSO_DESFEITO: 'Passo de SEO desmarcado',
-  GOOGLE_VISITA: 'Robô do Google visitou uma página'
+  GOOGLE_VISITA: 'Robô do Google visitou uma página',
+  ACESSOS_ALTERADOS: 'Acessos ao painel alterados'
 };
 
 /** Eventos que merecem destaque visual no log. */

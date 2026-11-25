@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import AdminDashboard from './AdminDashboard';
+import { acessoAtual, pode } from '@/server/acesso';
+import { FERRAMENTAS } from '@/lib/ferramentas';
 import { unitCalendar } from '@/server/units';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +12,30 @@ export const dynamic = 'force-dynamic';
  * expõe dado de reserva nenhum antes de o painel autenticar.
  */
 export default async function AdminPage() {
+  // Sem o Menu liberado, a entrada do painel lista o que a conta pode abrir.
+  const acesso = await acessoAtual().catch(() => null);
+  if (!acesso || !pode(acesso, 'menu')) {
+    const liberadas = FERRAMENTAS.filter((f) => f.chave !== 'menu' && acesso && pode(acesso, f.chave));
+    return (
+      <section className="panel">
+        <p className="eyebrow">Painel</p>
+        <h1>Bem-vindo.</h1>
+        {liberadas.length ? (
+          <ul className="painel-atalhos">
+            {liberadas.map((f) => (
+              <li key={f.chave}>
+                <Link href={f.href}>{f.rotulo}</Link>
+                <small>{f.hint}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="hint">Nenhuma área do painel está liberada para a sua conta ainda.</p>
+        )}
+      </section>
+    );
+  }
+
   try {
     const calendar = await unitCalendar();
     if (!calendar.units.length) {
@@ -17,6 +44,7 @@ export default async function AdminPage() {
 
     return (
       <AdminDashboard
+        verDashboard={pode(acesso, 'dashboard')}
         units={calendar.units.map((unit) => ({
           id: unit.id,
           slug: unit.slug,

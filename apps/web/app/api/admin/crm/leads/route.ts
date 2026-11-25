@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/server/auth';
+import { requireFerramenta } from '@/server/acesso';
 import { createLead, leadCreateSchema, leadListSchema, listLeads } from '@/server/crm';
 import { assertSameOrigin, handle, json, parseBody, parseQuery } from '@/server/http';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   return handle(async () => {
-    await requireAdmin();
+    await requireFerramenta('crm');
     return json(await listLeads(parseQuery(request, leadListSchema)));
   });
 }
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return handle(async () => {
     assertSameOrigin(request);
-    const session = await requireAdmin();
+    const session = await requireFerramenta('crm');
     const input = await parseBody(request, leadCreateSchema);
     return json(await createLead(input, session.id), 201);
   });

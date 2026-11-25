@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { query, transaction, violatedConstraint } from './db';
-import { badRequest, conflict, notFound } from './errors';
+import { badRequest, conflict, forbidden, notFound } from './errors';
 import { hashPassword } from './auth';
 import { MIN_PASSWORD_LENGTH } from './password';
 
@@ -43,11 +43,13 @@ export const passwordResetSchema = z.object({
   newPassword: z.string().min(MIN_PASSWORD_LENGTH).max(200)
 });
 
-export async function listUsers(input: z.infer<typeof userListSchema>) {
+export async function listUsers(input: z.infer<typeof userListSchema>, viewerDev = false) {
   const search = input.search ? `%${input.search.toLowerCase()}%` : null;
   const result = await query(
     `SELECT u.id, u.full_name, u.username, u.email, u.phone, u.role, u.status,
             u.avatar_url, u.created_at, u.last_login_at,
+            -- Quem é Dev só aparece para o próprio Dev.
+            CASE WHEN $5::boolean THEN u.is_dev END AS is_dev,
             (SELECT COUNT(*) FROM user_sessions s
               WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > now())
               AS sessoes_ativas,
@@ -60,9 +62,19 @@ export async function listUsers(input: z.infer<typeof userListSchema>) {
             OR lower(COALESCE(u.username,'')) LIKE $3)
      ORDER BY u.role DESC, u.full_name
      LIMIT $4`,
-    [input.role ?? null, input.status ?? null, search, input.limit]
+    [input.role ?? null, input.status ?? null, search, input.limit, viewerDev]
   );
   return result.rows;
+}
+
+/**
+ * A conta Dev não pode ser alterada por outra conta. A mensagem é genérica de
+ * propósito: para os donos, essa conta é um administrador como outro qualquer.
+ */
+async function protegerContaDev(targetId: string, actorDev: boolean) {
+  if (actorDev) return;
+  const r = await query<{ is_dev: boolean }>(`SELECT is_dev FROM users WHERE id = $1`, [targetId]);
+  if (r.rows[0]?.is_dev) throw forbidden('CONTA_PROTEGIDA');
 }
 
 const FIELDS = [
@@ -77,8 +89,10 @@ const FIELDS = [
 export async function updateUser(
   targetId: string,
   actorId: string,
-  input: z.infer<typeof userUpdateSchema>
+  input: z.infer<typeof userUpdateSchema>,
+  actorDev = false
 ) {
+  await protegerContaDev(targetId, actorDev);
   if (targetId === actorId && (input.role === 'CUSTOMER' || input.status === 'SUSPENDED')) {
     throw badRequest('CANNOT_DEMOTE_SELF');
   }
@@ -142,8 +156,10 @@ export async function updateUser(
 export async function resetUserPassword(
   targetId: string,
   actorId: string,
-  input: z.infer<typeof passwordResetSchema>
+  input: z.infer<typeof passwordResetSchema>,
+  actorDev = false
 ) {
+  await protegerContaDev(targetId, actorDev);
   // A própria senha passa por /api/auth/password, que confere a senha atual e
   // mantém esta sessão. Por aqui, um admin com a tela aberta no computador de
   // outra pessoa trocaria a senha dele sem saber a atual — e ainda se deslogaria.
