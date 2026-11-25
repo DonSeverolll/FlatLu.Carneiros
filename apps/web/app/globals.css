@@ -755,3 +755,9 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
   .seo-passos-lista li { grid-template-columns: 26px minmax(0, 1fr); }
   .seo-passos-lista li .chip { grid-column: 2; justify-self: start; }
 }
+
+/* O botão "Entrar" / avatar do hóspede é fixo no canto superior direito; o menu
+   do topo reserva esse espaço para os links não ficarem por baixo dele. */
+@media (min-width: 761px) {
+  .nav { padding-right: calc(6vw + 190px); }
+}
