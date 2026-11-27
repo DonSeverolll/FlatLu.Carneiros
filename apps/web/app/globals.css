@@ -786,7 +786,6 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .caminho { align-items: center; display: flex; flex-direction: column; height: 300vh; overflow: hidden; padding: 0 16px 16px; position: relative; }
 .caminho-topo { align-items: center; display: flex; flex-direction: column; margin-top: 140px; text-align: center; }
 .caminho-topo h2 { font-size: clamp(54px, 9vw, 128px); letter-spacing: -.03em; line-height: .95; margin: 0; position: relative; z-index: 1; }
-.caminho-topo p { color: var(--muted); font-size: 20px; font-weight: 500; margin: 24px 0 0; position: relative; z-index: 1; }
 /* Os laços do desenho ficam atrás do título, no lado direito; o rabo da linha desce até o cartão. */
 .caminho-linha { color: var(--coral); height: auto; max-width: none; position: absolute; right: -100px; top: 140px; z-index: 0; }
 .caminho-cartao { background: var(--ink); border-radius: 32px; color: var(--sand); margin-top: auto; padding: 0 24px 40px; position: relative; width: 100%; z-index: 1; }
@@ -799,7 +798,6 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
   .caminho { height: 190vh; }
   .caminho-topo { margin-top: 90px; }
   .caminho-linha { right: -50vw; top: 90px; width: 160vw; }
-  .caminho-topo p { font-size: 17px; }
   .caminho-cartao { border-radius: 24px; }
   .caminho-info { align-items: stretch; flex-direction: column; margin-top: 40px; }
   .caminho-info > div { align-items: flex-start; flex-direction: column; gap: 18px; }

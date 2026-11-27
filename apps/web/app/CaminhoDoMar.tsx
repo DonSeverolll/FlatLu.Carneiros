@@ -75,7 +75,6 @@ export default function CaminhoDoMar({ espacos, checkIn, checkOut }: Props) {
         <h2 id="caminho-titulo">
           Um caminho <br /> que termina <br /> no mar de Carneiros.
         </h2>
-        <p>Role a página e siga a linha até a sua reserva.</p>
         <svg
           aria-hidden="true"
           className="caminho-linha"
@@ -118,9 +117,6 @@ export default function CaminhoDoMar({ espacos, checkIn, checkOut }: Props) {
                 {espacos === 1 ? '1 espaço' : `${espacos} espaços`} <br /> calendário e entrada próprios
               </p>
             ) : null}
-            <p>
-              Reserva com sinal <br /> por Pix
-            </p>
             <a className="button" href="#reserva">
               Ver disponibilidade
             </a>
