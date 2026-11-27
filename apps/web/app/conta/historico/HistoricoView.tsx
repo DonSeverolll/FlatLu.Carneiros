@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, messageFor } from '@/lib/api';
 import { PAYMENT_LABEL, STATUS_LABEL, brl, isDayUse, longDate } from '@/lib/format';
 import type { ReservationDto } from '@/lib/types';
+import TextoRolante from '../../TextoRolante';
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 
@@ -64,7 +65,7 @@ export default function HistoricoView() {
           <small>{PAYMENT_LABEL[reserva.payment_status] ?? reserva.payment_status}</small>
           {reserva.status === 'PENDING_PAYMENT' && (
             <Link className="button small" href={`/reserva/${reserva.id}`}>
-              Continuar
+              <TextoRolante>Continuar</TextoRolante>
             </Link>
           )}
         </div>

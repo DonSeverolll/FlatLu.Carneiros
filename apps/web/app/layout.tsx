@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import AttributionCapture from './AttributionCapture';
+import BotaoWhatsapp from './BotaoWhatsapp';
 import GuestSidebar from './GuestSidebar';
 import { SITE_NAME, SITE_SHORT_NAME, siteUrl } from '@/lib/site';
 import { PALAVRAS_CHAVE } from '@/server/seo/conteudo';
+import { numeroWhatsapp } from '@/lib/whatsapp';
 import './globals.css';
 
 /**
@@ -43,12 +45,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    // A abertura da página inicial marca o <html> antes de o React assumir.
+    <html lang="pt-BR" suppressHydrationWarning>
       <body>
         {children}
         <AttributionCapture />
         {/* Acesso do hóspede em qualquer página; some no painel. */}
         <GuestSidebar />
+        {/* Conversa direta com o dono; o número fica na variável WHATSAPP_CONTATO. */}
+        <BotaoWhatsapp numero={numeroWhatsapp(process.env.WHATSAPP_CONTATO)} />
       </body>
     </html>
   );

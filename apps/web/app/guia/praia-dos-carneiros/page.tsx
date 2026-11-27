@@ -17,6 +17,7 @@ import {
 import { jsonLdGuia, jsonLdTrilha } from '@/server/seo/jsonld';
 import { carregarCalendario } from '@/server/seo/vitrine';
 import { registrarVisitaDoGoogle } from '@/server/seo/painel';
+import TextoRolante from '../../TextoRolante';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,7 +88,7 @@ export default async function GuiaPage() {
               ))}
             </ul>
             <Link className="button" href={PAGINA_ALUGUEL}>
-              Ver todos os espaços e datas
+              <TextoRolante>Ver todos os espaços e datas</TextoRolante>
             </Link>
           </section>
         )}

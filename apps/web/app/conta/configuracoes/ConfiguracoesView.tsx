@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, messageFor } from '@/lib/api';
 import type { UserDto } from '@/lib/types';
+import TextoRolante from '../../TextoRolante';
 
 /**
  * Dados do hóspede em um lugar só: perfil, foto, qualificação para o contrato
@@ -176,7 +177,7 @@ export default function ConfiguracoesView() {
             <input name="phone" defaultValue={user.phone ?? ''} maxLength={32} />
           </label>
           <button className="button" type="submit" disabled={ocupado === 'perfil'}>
-            {ocupado === 'perfil' ? 'Salvando...' : 'Salvar perfil'}
+            <TextoRolante>{ocupado === 'perfil' ? 'Salvando...' : 'Salvar perfil'}</TextoRolante>
           </button>
           <p className="hint">
             A foto é lida de um endereço na internet. Upload direto de arquivo depende de
@@ -199,7 +200,7 @@ export default function ConfiguracoesView() {
             <input name="confirm" type="password" required minLength={12} autoComplete="new-password" />
           </label>
           <button className="button" type="submit" disabled={ocupado === 'senha'}>
-            {ocupado === 'senha' ? 'Alterando...' : 'Alterar senha'}
+            <TextoRolante>{ocupado === 'senha' ? 'Alterando...' : 'Alterar senha'}</TextoRolante>
           </button>
           <p className="hint">
             Mínimo de 12 caracteres. Trocar a senha desconecta os outros dispositivos — este
@@ -267,7 +268,7 @@ export default function ConfiguracoesView() {
           </label>
         </div>
         <button className="button" type="submit" disabled={ocupado === 'qualificacao'}>
-          {ocupado === 'qualificacao' ? 'Salvando...' : 'Salvar dados do contrato'}
+          <TextoRolante>{ocupado === 'qualificacao' ? 'Salvando...' : 'Salvar dados do contrato'}</TextoRolante>
         </button>
       </form>
 

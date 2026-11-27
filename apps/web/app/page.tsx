@@ -4,13 +4,22 @@ import BookingWidget from './BookingWidget';
 import CatalogoEspacos from './CatalogoEspacos';
 import JsonLd from './JsonLd';
 import { Perguntas, SiteFooter } from './SiteChrome';
+import Abertura, { SCRIPT_ABERTURA } from './Abertura';
+import Assinatura from './Assinatura';
 import CaminhoDoMar from './CaminhoDoMar';
+import CarrosselMarcas from './CarrosselMarcas';
+import { LOGOS_MARCAS } from '@/lib/logosMarcas';
 import { PAGINA_ALUGUEL, PAGINA_GUIA, caminhoDoEspaco, perguntasFrequentes, precoAPartirDe } from '@/server/seo/conteudo';
 import { jsonLdLista, jsonLdPerguntas, jsonLdSite } from '@/server/seo/jsonld';
 import { carregarCatalogo, carregarVitrine } from '@/server/seo/vitrine';
 import { registrarVisitaDoGoogle } from '@/server/seo/painel';
+import TextoRolante from './TextoRolante';
 
 export const dynamic = 'force-dynamic';
+
+/** Foto de abertura quando nenhum espaço tem capa no catálogo (a mesma do CSS). */
+const IMAGEM_PADRAO =
+  'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1400&q=85';
 
 /**
  * A vitrine é um Server Component: o calendário das três unidades vem direto da
@@ -47,6 +56,10 @@ export default async function HomePage() {
   }
 
   return (
+    <>
+      {/* Antes de qualquer coisa aparecer: decide se a casa é construída. */}
+      <script dangerouslySetInnerHTML={{ __html: SCRIPT_ABERTURA }} />
+      <Abertura imagem={capa?.url ?? IMAGEM_PADRAO} />
     <main>
       <JsonLd
         data={[jsonLdSite(), calendar ? jsonLdLista(calendar.units) : null, jsonLdPerguntas(perguntas)].filter(Boolean)}
@@ -63,14 +76,16 @@ export default async function HomePage() {
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Aluguel de temporada · Carneiros e São José da Coroa Grande — PE</p>
-          <h1>Flat para alugar na Praia dos Carneiros.</h1>
+          <h1>
+            <Assinatura texto="Flat para alugar na Praia dos Carneiros." />
+          </h1>
           <p className="tagline">Seu intervalo entre o mar e o tempo.</p>
           <p className="lead">
             Três espaços independentes no litoral sul de Pernambuco: o flat na Praia de Carneiros e
             os dois andares da casa em São José da Coroa Grande, cada um com entrada própria.
           </p>
           <a className="button" href="#reserva">
-            Ver disponibilidade
+            <TextoRolante>Ver disponibilidade</TextoRolante>
           </a>
         </div>
         <div
@@ -165,7 +180,14 @@ export default async function HomePage() {
       <p className="seo-page hint">
         Compare os espaços em <Link href={PAGINA_ALUGUEL}>flat e apartamento para alugar em Carneiros</Link>.
       </p>
+      <CarrosselMarcas
+        eyebrow="Canais e pagamento"
+        id="marcas"
+        logos={LOGOS_MARCAS}
+        titulo="Fale, reserve e pague como preferir."
+      />
       <SiteFooter espacos={calendar?.units ?? []} />
     </main>
+    </>
   );
 }

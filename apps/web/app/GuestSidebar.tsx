@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { UserDto } from '@/lib/types';
+import TextoRolante from './TextoRolante';
 
 const ITEMS = [
   { href: '/conta/pagamentos', label: 'Pagamentos', hint: 'Cobranças e situação' },
@@ -52,7 +53,7 @@ export default function GuestSidebar() {
   if (!user) {
     return (
       <Link className="guest-launcher guest-in" href="/login">
-        Entrar
+        <TextoRolante>Entrar</TextoRolante>
       </Link>
     );
   }

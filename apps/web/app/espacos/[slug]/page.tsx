@@ -17,6 +17,7 @@ import {
 import { jsonLdEspaco, jsonLdPerguntas, jsonLdTrilha, jsonLdVideos } from '@/server/seo/jsonld';
 import { carregarVitrine, fotosDoEspaco } from '@/server/seo/vitrine';
 import { registrarVisitaDoGoogle } from '@/server/seo/painel';
+import TextoRolante from '../../TextoRolante';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,7 @@ export default async function EspacoPage({ params }: Props) {
           <h1>Espaço temporariamente indisponível</h1>
           <p>O calendário está fora do ar. Tente de novo em alguns minutos ou volte para a página inicial.</p>
           <Link className="button" href="/">
-            Ir para o início
+            <TextoRolante>Ir para o início</TextoRolante>
           </Link>
         </section>
       </main>
@@ -139,7 +140,7 @@ export default async function EspacoPage({ params }: Props) {
 
         <p className="row-actions">
           <a className="button" href="#reserva">
-            Ver datas livres de {unit.shortName}
+            <TextoRolante>{`Ver datas livres de ${unit.shortName}`}</TextoRolante>
           </a>
           {unit.locationUrl && (
             <a className="link" href={unit.locationUrl} rel="noreferrer" target="_blank">

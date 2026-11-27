@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, messageFor } from '@/lib/api';
 import type { UserDto } from '@/lib/types';
+import TextoRolante from '../TextoRolante';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function LoginPage() {
           <input name="password" type="password" autoComplete="current-password" required />
         </label>
         <button className="button" type="submit" disabled={submitting}>
-          {submitting ? 'Entrando...' : 'Entrar'}
+          <TextoRolante>{submitting ? 'Entrando...' : 'Entrar'}</TextoRolante>
         </button>
         {message && (
           <p className="feedback" role="status">
