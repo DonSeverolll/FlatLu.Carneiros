@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Assinatura from './Assinatura';
+import TextoRolante from './TextoRolante';
 
 type Props = {
   espacos: number;
@@ -98,7 +100,7 @@ export default function CaminhoDoMar({ espacos, checkIn, checkOut }: Props) {
 
       <div className="caminho-cartao">
         <p className="caminho-marca" aria-hidden="true">
-          Carneiros.
+          <Assinatura texto="Carneiros." />
         </p>
         <div className="caminho-info">
           <div>
@@ -118,7 +120,7 @@ export default function CaminhoDoMar({ espacos, checkIn, checkOut }: Props) {
               </p>
             ) : null}
             <a className="button" href="#reserva">
-              Ver disponibilidade
+              <TextoRolante>Ver disponibilidade</TextoRolante>
             </a>
           </div>
         </div>

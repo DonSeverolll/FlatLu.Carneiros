@@ -630,9 +630,7 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .catalogo-head { align-items: flex-end; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; margin-bottom: 22px; }
 .catalogo-head h2 { font-size: clamp(32px, 4vw, 52px); margin: 8px 0 0; }
 .catalogo-tabs { border-bottom: 1px solid rgba(23,63,69,.14); display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 18px; }
-.catalogo-galeria { display: grid; gap: 10px; grid-auto-rows: 200px; grid-template-columns: 2fr 1fr 1fr; }
 .catalogo-foto { background: #d8e6df; border: 0; cursor: zoom-in; overflow: hidden; padding: 0; position: relative; }
-.catalogo-foto.destaque { grid-row: span 2; }
 .catalogo-foto img { display: block; height: 100%; object-fit: cover; transition: transform .4s ease; width: 100%; }
 .catalogo-foto:hover img, .catalogo-foto:focus-visible img { transform: scale(1.04); }
 .catalogo-foto:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
@@ -641,8 +639,6 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
 .catalogo .hint { margin-top: 10px; }
 @media (max-width: 760px) {
   .catalogo { padding: 14vw 6vw 6vw; }
-  .catalogo-galeria { grid-auto-rows: 120px; grid-template-columns: 1fr 1fr; }
-  .catalogo-foto.destaque { grid-column: span 2; grid-row: span 2; }
 }
 
 .visualizador { align-items: center; background: rgba(10,25,28,.92); display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; inset: 0; position: fixed; z-index: 50; }
@@ -801,4 +797,140 @@ select { background: transparent; border: 1px solid rgba(23,63,69,.25); color: v
   .caminho-cartao { border-radius: 24px; }
   .caminho-info { align-items: stretch; flex-direction: column; margin-top: 40px; }
   .caminho-info > div { align-items: flex-start; flex-direction: column; gap: 18px; }
+}
+
+/* Texto que rola nos botões (TextoRolante, adaptado do Skiper 58 / Skiper UI).
+   Cada letra sobe e some; a cópia entra por baixo, do meio para as pontas. */
+.rolante { display: inline-block; line-height: 1.25; overflow: hidden; position: relative; vertical-align: top; }
+.rolante-linha { display: block; white-space: nowrap; }
+.rolante-linha > span { display: inline-block; transition: transform .3s ease-in-out; }
+.rolante-copia { inset: 0; position: absolute; }
+.rolante-copia > span { transform: translateY(100%); }
+@media (hover: hover) {
+  :is(a, button):not(:disabled):hover .rolante-linha:not(.rolante-copia) > span { transform: translateY(-100%); }
+  :is(a, button):not(:disabled):hover .rolante-copia > span { transform: translateY(0); }
+}
+:is(a, button):focus-visible .rolante-linha:not(.rolante-copia) > span { transform: translateY(-100%); }
+:is(a, button):focus-visible .rolante-copia > span { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .rolante-linha > span { transition: none; }
+  .rolante-copia { display: none; }
+  :is(a, button) .rolante-linha:not(.rolante-copia) > span { transform: none !important; }
+}
+
+/* Fotos do catálogo empilhadas na rolagem (PilhaDeFotos, adaptado do Skiper 16 /
+   Skiper UI): cada foto gruda no alto, 20px abaixo da anterior, e as de baixo
+   encolhem conforme as próximas chegam. */
+.catalogo-galeria { --pilha-topo: 12vh; }
+.pilha { align-items: center; display: flex; flex-direction: column; gap: 8vh; padding-bottom: 24vh; }
+.pilha-item { display: flex; justify-content: center; position: sticky; width: 100%; }
+.pilha-cartao { border-radius: 28px; box-shadow: 0 -12px 32px rgba(23,63,69,.14); height: clamp(260px, 62vh, 560px); overflow: hidden; transform-origin: top center; width: min(860px, 100%); will-change: transform; }
+.pilha-cartao .catalogo-foto { display: block; height: 100%; width: 100%; }
+@media (max-width: 760px) {
+  .catalogo-galeria { --pilha-topo: 72px; }
+  .pilha { gap: 6vh; padding-bottom: 16vh; }
+  .pilha-cartao { border-radius: 20px; height: clamp(220px, 56vh, 440px); }
+}
+
+/* ---------------------------------------------------------------------------
+   Abertura da página inicial: casa sendo construída na janela inteira enquanto
+   a foto principal carrega (Abertura.tsx). Só aparece com html.abertura, que o
+   script da página liga na primeira visita da sessão.
+   --------------------------------------------------------------------------- */
+.abertura-tela { display: none; }
+html.abertura body { overflow: hidden; }
+html.abertura .abertura-tela {
+  align-items: center; animation: abertura-seguranca 0s linear 7s forwards; background: radial-gradient(circle at 50% 40%, #fffaf2, var(--sand) 70%);
+  display: flex; flex-direction: column; inset: 0; justify-content: center; position: fixed; transition: opacity .6s ease, transform .6s ease; z-index: 100;
+}
+html.abertura-saindo .abertura-tela { opacity: 0; pointer-events: none; transform: translateY(-2%); }
+@keyframes abertura-seguranca { to { opacity: 0; pointer-events: none; visibility: hidden; } }
+.casa { height: auto; width: min(260px, 62vw); }
+.casa-traco { animation: casa-traco .55s ease-out var(--d, 0s) forwards; stroke: var(--ink); stroke-dasharray: 1; stroke-dashoffset: 1; stroke-linecap: round; stroke-linejoin: round; stroke-width: 4; }
+.casa-traco.fino { stroke: var(--muted); stroke-width: 2.5; }
+.casa-guindaste { animation: casa-some .5s ease 2.35s forwards; }
+.coqueiro-tronco { stroke: #9c7a52; stroke-width: 5; }
+.casa-traco.coqueiro-folha { stroke: #3d8a62; stroke-width: 4; }
+.coqueiro-folhas { animation: coqueiro-balanca 2.4s ease-in-out 1.6s infinite; transform-box: view-box; transform-origin: 26px 76px; }
+.coqueiro-coco { animation: coqueiro-coco .35s ease 2.1s forwards; fill: #6b4f33; opacity: 0; }
+@keyframes coqueiro-balanca { 50% { transform: rotate(-4deg); } }
+@keyframes coqueiro-coco { to { opacity: 1; } }
+.casa-telhado { animation: casa-telhado .5s cubic-bezier(.3, 1.45, .6, 1) 1.3s forwards; opacity: 0; stroke: var(--coral); stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; transform: translateY(-46px); }
+.casa-luz { animation: casa-luz .45s ease 2.25s forwards; fill: #f4a261; opacity: 0; }
+.abertura-marca { font-size: 12px; font-weight: 700; letter-spacing: .14em; margin: 26px 0 6px; }
+.abertura-texto { animation: abertura-pulso 1.4s ease-in-out infinite; color: var(--muted); font-size: 14px; margin: 0; }
+@keyframes casa-traco { to { stroke-dashoffset: 0; } }
+@keyframes casa-telhado { to { opacity: 1; transform: translateY(0); } }
+@keyframes casa-luz { to { opacity: .85; } }
+@keyframes casa-some { to { opacity: 0; } }
+@keyframes abertura-pulso { 50% { opacity: .45; } }
+
+/* Revelação em gradiente: cada parte da página aparece de cima para baixo,
+   como uma cortina com borda suave. Sem @property (navegador antigo), aparece
+   de uma vez no fim da animação. */
+@property --revelar { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+.revelar {
+  --revelar: 0%;
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(var(--revelar) - 30%), transparent var(--revelar));
+  mask-image: linear-gradient(180deg, #000 calc(var(--revelar) - 30%), transparent var(--revelar));
+}
+.revelar.revelado { animation: revelar 1.3s cubic-bezier(.25, .6, .3, 1) forwards; }
+.revelar.revelado .hero-image { animation: revelar-foto 1.6s ease-out; }
+@keyframes revelar { to { --revelar: 130%; } }
+@keyframes revelar-foto { from { transform: scale(1.04); } }
+
+/* Carrossel de canais e pagamento (CarrosselMarcas.tsx). */
+.marcas { padding: 8vw 6vw 6vw; text-align: center; }
+.marcas h2 { font-size: clamp(30px, 4vw, 50px); margin: 10px 0 40px; }
+.marcas-faixa { display: grid; gap: 24px; grid-template-columns: repeat(4, 1fr); margin: 0 auto; max-width: 900px; }
+.marcas-posicao { display: grid; height: 110px; overflow: hidden; place-items: center; }
+.marcas-logo { align-items: center; color: var(--ink); display: flex; flex-direction: column; gap: 10px; grid-area: 1 / 1; opacity: .75; }
+.marcas-logo svg { height: 48px; width: 48px; }
+.marcas-logo span { color: var(--muted); font-size: 13px; font-weight: 500; }
+.marcas-logo.entrando { animation: marca-entra .6s cubic-bezier(.3, .7, .3, 1) both; }
+.marcas-logo.saindo { animation: marca-sai .5s ease-in both; }
+@keyframes marca-entra { from { filter: blur(8px); opacity: 0; transform: translateY(60%); } }
+@keyframes marca-sai { to { filter: blur(8px); opacity: 0; transform: translateY(-60%); } }
+.marcas-nota { font-size: 12px; margin-top: 28px; }
+
+/* Botão do WhatsApp (BotaoWhatsapp.tsx). */
+.botao-whatsapp {
+  align-items: center; background: #25d366; border-radius: 999px; bottom: 22px; box-shadow: 0 7px 20px rgba(23, 63, 69, .25); color: #fff;
+  display: flex; font-size: 12.75px; font-weight: 700; gap: 8.5px; padding: 11px 17px 11px 13.5px; position: fixed; right: 22px; transition: transform .2s ease, box-shadow .2s ease; z-index: 40;
+}
+.botao-whatsapp svg { height: 22px; width: 22px; }
+.botao-whatsapp:hover { box-shadow: 0 10px 24px rgba(23, 63, 69, .32); transform: translateY(-2px); }
+.botao-whatsapp:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  .marcas { padding: 16vw 6vw 12vw; }
+  .marcas-faixa { gap: 8px; grid-template-columns: repeat(4, 1fr); }
+  .marcas-posicao { height: 90px; }
+  .marcas-logo svg { height: 34px; width: 34px; }
+  .marcas-logo span { font-size: 11px; text-align: center; }
+  .botao-whatsapp { bottom: 16px; padding: 12px; right: 16px; }
+  .botao-whatsapp span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marcas-faixa { display: none; }
+  .marcas .sr-only { all: unset; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; list-style: none; }
+}
+
+/* Texto que se escreve como assinatura (Assinatura.tsx): o contorno de cada
+   letra é desenhado e depois preenchido; o texto de verdade fica por baixo,
+   transparente, e volta quando o desenho termina. */
+.assinatura-palavra { display: inline-block; position: relative; }
+.assinatura-base { display: inline-block; height: 0; width: 0; }
+html.assinar .assinatura:not([data-estado]),
+.assinatura[data-estado="espera"],
+.assinatura[data-estado="escrevendo"] { color: transparent; }
+.assinatura-desenho { height: 100%; left: 0; overflow: visible; pointer-events: none; position: absolute; top: 0; width: 100%; }
+.assinatura-desenho text { font: inherit; letter-spacing: inherit; }
+.assinatura-desenho tspan {
+  animation: assinar 1.1s ease-in-out both; fill: var(--cor); fill-opacity: 0; stroke: var(--cor);
+  stroke-dasharray: var(--traco); stroke-dashoffset: var(--traco); stroke-linecap: round; stroke-linejoin: round; stroke-width: max(1px, .018em);
+}
+@keyframes assinar {
+  70% { fill-opacity: 0; stroke-dashoffset: 0; }
+  100% { fill-opacity: 1; stroke-dashoffset: 0; stroke-width: 0; }
 }

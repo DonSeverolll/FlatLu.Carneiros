@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, messageFor } from '@/lib/api';
 import type { UserDto } from '@/lib/types';
+import TextoRolante from '../TextoRolante';
 
 const MIN_PASSWORD = 12;
 
@@ -93,7 +94,7 @@ export default function RegisterPage() {
           />
         </label>
         <button className="button" type="submit" disabled={submitting}>
-          {submitting ? 'Criando...' : 'Criar conta'}
+          <TextoRolante>{submitting ? 'Criando...' : 'Criar conta'}</TextoRolante>
         </button>
         {message && <p className="feedback">{message}</p>}
         <p className="hint">

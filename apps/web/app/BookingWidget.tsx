@@ -6,6 +6,7 @@ import AvailabilityCalendar from './AvailabilityCalendar';
 import { api, messageFor } from '@/lib/api';
 import { brl, shortDate } from '@/lib/format';
 import type { QuoteResponseDto, ReservationDto, UnitCalendarDto, UnitDto } from '@/lib/types';
+import TextoRolante from './TextoRolante';
 
 function addDays(iso: string, amount: number): string {
   const [year, month, day] = iso.split('-').map(Number);
@@ -374,7 +375,7 @@ export default function BookingWidget({
           disabled={submitting || !canReserve}
           style={canReserve ? { background: unit.color } : undefined}
         >
-          {submitting ? 'Enviando...' : `Reservar ${unit.shortName}`}
+          <TextoRolante>{submitting ? 'Enviando...' : `Reservar ${unit.shortName}`}</TextoRolante>
         </button>
         <p className="hint">
           A data fica reservada por {unit.holdMinutes} minutos até o pagamento do sinal.

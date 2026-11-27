@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, messageFor } from '@/lib/api';
 import { brl, longDate } from '@/lib/format';
 import type { PaymentIntentDto, UserDto } from '@/lib/types';
+import TextoRolante from '../../TextoRolante';
 
 type EstadoContrato = {
   missingCustomerData: string[];
@@ -326,7 +327,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
             </label>
           </div>
           <button className="button" type="submit" disabled={ocupado === 'dados'}>
-            {ocupado === 'dados' ? 'Salvando...' : 'Continuar para o contrato'}
+            <TextoRolante>{ocupado === 'dados' ? 'Salvando...' : 'Continuar para o contrato'}</TextoRolante>
           </button>
         </form>
       )}
@@ -373,7 +374,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
                 <input name="signerCpf" required minLength={11} placeholder="000.000.000-00" />
               </label>
               <button className="button" type="submit" disabled={ocupado === 'assinar'}>
-                {ocupado === 'assinar' ? 'Registrando...' : 'Assinar e ir para o pagamento'}
+                <TextoRolante>{ocupado === 'assinar' ? 'Registrando...' : 'Assinar e ir para o pagamento'}</TextoRolante>
               </button>
             </form>
           )}
@@ -445,7 +446,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
                   onClick={() => void gerarCobranca()}
                   disabled={ocupado === 'pagamento'}
                 >
-                  {ocupado === 'pagamento' ? 'Abrindo...' : 'Pagar com cartão'}
+                  <TextoRolante>{ocupado === 'pagamento' ? 'Abrindo...' : 'Pagar com cartão'}</TextoRolante>
                 </button>
                 <p className="hint">
                   Você será levado ao ambiente seguro do provedor. Nenhum dado de cartão passa por
@@ -467,7 +468,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
                 A confirmação chegou direto do banco — não é preciso enviar comprovante.
               </p>
               <Link className="button" href="/conta/historico">
-                Ver minha reserva
+                <TextoRolante>Ver minha reserva</TextoRolante>
               </Link>
             </section>
           )}
@@ -491,7 +492,7 @@ export default function ReservaPage({ params }: { params: Promise<{ reservationI
                   <textarea readOnly rows={4} value={intent.pix.payload} />
                 </label>
                 <button className="button" type="button" onClick={() => void copiarPix()}>
-                  {copiado ? 'Código copiado' : 'Copiar código Pix'}
+                  <TextoRolante>{copiado ? 'Código copiado' : 'Copiar código Pix'}</TextoRolante>
                 </button>
                 <dl className="facts">
                   <div>

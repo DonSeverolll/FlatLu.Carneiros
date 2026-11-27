@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, messageFor } from '@/lib/api';
 import { CHARGE_KIND, CHARGE_STATUS, METHOD_LABEL, brl, longDate, shortDate } from '@/lib/format';
+import TextoRolante from '../../TextoRolante';
 
 type Cobranca = {
   id: string;
@@ -124,7 +125,7 @@ export default function PagamentosView() {
                     ) : null}
                     {pagavel && (
                       <Link className="button small" href={`/reserva/${cobranca.reservation_id}`}>
-                        Pagar agora
+                        <TextoRolante>Pagar agora</TextoRolante>
                       </Link>
                     )}
                     {cobranca.status === 'PROCESSING' && cobranca.checkout_url && (

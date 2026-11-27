@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { CatalogoEspaco } from '@/server/catalogo/catalogo';
+import PilhaDeFotos from './PilhaDeFotos';
 
 const VISIVEIS = 5;
 
@@ -88,22 +89,24 @@ export default function CatalogoEspacos({ espacos, conta }: { espacos: CatalogoE
       )}
 
       <div className="catalogo-galeria" role="tabpanel" aria-label={espaco.nome}>
+        <PilhaDeFotos key={espaco.slug}>
         {espaco.fotos.slice(0, VISIVEIS).map((f, i) => (
           <button
             aria-label={`Abrir foto ${i + 1} de ${espaco.fotos.length}${f.descricao ? `: ${f.descricao}` : ''}`}
-            className={i === 0 ? 'catalogo-foto destaque' : 'catalogo-foto'}
+            className="catalogo-foto"
             key={f.id}
             onClick={() => setAberta({ espaco: espacos.indexOf(espaco), foto: i })}
             type="button"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={textoAlternativo(espaco, f.descricao, i)} loading={i === 0 ? 'eager' : 'lazy'} referrerPolicy="no-referrer" src={f.miniatura} />
+            <img alt={textoAlternativo(espaco, f.descricao, i)} loading={i < 2 ? 'eager' : 'lazy'} referrerPolicy="no-referrer" src={f.miniatura} />
             {f.tipo === 'VIDEO' && <span className="catalogo-play" aria-hidden>▶</span>}
             {i === VISIVEIS - 1 && espaco.fotos.length > VISIVEIS && (
               <span className="catalogo-mais">+{espaco.fotos.length - VISIVEIS} fotos</span>
             )}
           </button>
         ))}
+        </PilhaDeFotos>
       </div>
       {espaco.local && <p className="hint">{espaco.local}</p>}
 

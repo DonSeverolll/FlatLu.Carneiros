@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { CHARGE_STATUS, STATUS_LABEL, brl, isDayUse, longDate } from '@/lib/format';
 import type { ReservationDto, UserDto } from '@/lib/types';
+import TextoRolante from '../TextoRolante';
 
 type Cobranca = {
   id: string;
@@ -54,7 +55,7 @@ export default function ContaPage() {
         <h1>Entre para continuar.</h1>
         <div className="row-actions">
           <Link className="button" href="/login">
-            Entrar
+            <TextoRolante>Entrar</TextoRolante>
           </Link>
           <Link className="link" href="/cadastro">
             Criar conta
@@ -115,7 +116,7 @@ export default function ContaPage() {
               </dl>
               {proxima.status === 'PENDING_PAYMENT' && (
                 <Link className="button" href={`/reserva/${proxima.id}`}>
-                  Continuar reserva
+                  <TextoRolante>Continuar reserva</TextoRolante>
                 </Link>
               )}
             </>
@@ -139,7 +140,7 @@ export default function ContaPage() {
                   <div className="stay-side">
                     <b>{brl(cobranca.amount)}</b>
                     <Link className="button small" href={`/reserva/${cobranca.reservation_id}`}>
-                      Pagar
+                      <TextoRolante>Pagar</TextoRolante>
                     </Link>
                   </div>
                 </article>
