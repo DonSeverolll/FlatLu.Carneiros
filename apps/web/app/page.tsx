@@ -4,6 +4,7 @@ import BookingWidget from './BookingWidget';
 import CatalogoEspacos from './CatalogoEspacos';
 import JsonLd from './JsonLd';
 import { Perguntas, SiteFooter } from './SiteChrome';
+import CaminhoDoMar from './CaminhoDoMar';
 import { PAGINA_ALUGUEL, PAGINA_GUIA, caminhoDoEspaco, perguntasFrequentes, precoAPartirDe } from '@/server/seo/conteudo';
 import { jsonLdLista, jsonLdPerguntas, jsonLdSite } from '@/server/seo/jsonld';
 import { carregarCatalogo, carregarVitrine } from '@/server/seo/vitrine';
@@ -85,6 +86,12 @@ export default async function HomePage() {
           }
         />
       </section>
+
+      <CaminhoDoMar
+        checkIn={calendar?.units[0]?.checkInTime.slice(0, 5) ?? null}
+        checkOut={calendar?.units[0]?.checkOutTime.slice(0, 5) ?? null}
+        espacos={calendar?.units.length ?? 0}
+      />
 
       <section className="details">
         <div>
